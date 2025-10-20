@@ -1,0 +1,39 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>CPM/PERT Scheduler</title>
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+  </head>
+  <body>
+    <header class="topbar">CPM/PERT Scheduler</header>
+    <main class="container">
+      <h2>Project Management Tool</h2>
+
+      <button id="btn-health">Check API</button>
+      <pre id="out"></pre>
+
+      <h3 style="margin-top: 16px;">Tasks JSON</h3>
+      <table border="1" cellpadding="6">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Duration</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>A</td>
+            <td>Start</td>
+            <td>2</td>
+          </tr>
+        </tbody>
+      </table>
+      <button id="btn-add">Add Task</button>
+      <button id="btn-save">Save Tasks</button>
+      <button id="btn-load">Get Tasks</button>
+    </main>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+  </body>
+</html>

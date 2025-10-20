@@ -1,0 +1,32 @@
+body {
+    font-family: system-ui, Arial, sans-serif;
+    margin: 0;
+    background: #f5f5f5;
+}
+
+.topbar {
+    background: #1f2937;
+    color: white;
+    padding: 12px 16px;
+    font-weight: 600;
+}
+
+.container {
+    padding: 16px;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+button {
+    margin-right: 8px;
+    padding: 6px 12px;
+    background: #3b82f6;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+button:hover {
+    background: #2563eb;
+}
