@@ -20,19 +20,25 @@
             <th>ID</th>
             <th>Name</th>
             <th>Duration</th>
+            <th>Dependencies</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td>A</td>
-            <td>Start</td>
-            <td>2</td>
+            <td contenteditable="true">A</td>
+            <td contenteditable="true">Start</td>
+            <td contenteditable="true">2</td>
+            <td contenteditable="true"></td>
+            <td><button class="btn-del">Delete</button></td>
           </tr>
         </tbody>
       </table>
-      <button id="btn-add">Add Task</button>
-      <button id="btn-save">Save Tasks</button>
-      <button id="btn-load">Get Tasks</button>
+      <div style="margin-top: 8px;">
+        <button id="btn-add">Add Task</button>
+        <button id="btn-save">Save Tasks</button>
+        <button id="btn-analyze">Analyze (CPM)</button>
+      </div>
     </main>
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
   </body>
