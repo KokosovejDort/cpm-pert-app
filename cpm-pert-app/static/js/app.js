@@ -15,13 +15,8 @@ function readTable() {
 
         const id = cells[0].textContent.trim();
         const name = cells[1].textContent.trim();
-        const durationText = cells[2].textContent.trim();
         const duration = Number(cells[2].textContent.trim() || "0");
         const dependencies = cells[3].textContent.trim();
-
-        console.log("Row", i, "cells:", cells.length);
-        console.log("Cell 0 content:", cells[0].textContent);
-        console.log("Cell 0 trimmed:", cells[0].textContent.trim());
 
         if (id) {
             const task = {
@@ -104,21 +99,27 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     document.getElementById("btn-analyze").onclick = async () => {
+        const tasksFromTable = readTable();
+        out.textContent = "⏳ Analyzing...";
         try {
-            const tasksFromTable = readTable();
             const requestBody = JSON.stringify({ tasks: tasksFromTable });
-
             const response = await fetch("/api/analyze", {
                 method: "POST",
                 headers: {"Content-Type": "application/json"},
                 body: requestBody
             });
 
-            const result = await response.json();
-            out.textContent = JSON.stringify(result, null, 2)
+            const json = await response.json();
+
+            if (json.ok) {
+                out.textContent = JSON.stringify(json.result, null, 2);
+            } 
+            else {
+                out.textContent = "❌ " + json.error;
+            }
         }
-        catch (error) {
-            out.textContent = error.message;
+        catch (err) {
+            out.textContent = "❌ Network or server error: " + err;
         }
     }
 });
