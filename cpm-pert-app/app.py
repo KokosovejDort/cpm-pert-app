@@ -26,8 +26,9 @@ def set_tasks():
 def analyze():
     try:
         data = request.get_json(force=True) or {}
-        validate_tasks(data)
-        result = analyze_schedule_with_nodes(data)
+        json = data.get("tasks", [])
+        validate_tasks(json)
+        result = analyze_schedule_with_nodes(json)
         return jsonify({"ok": True, "result": result})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 400

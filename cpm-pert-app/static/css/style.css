@@ -4,6 +4,33 @@ body {
     background: #f5f5f5;
 }
 
+#out {
+    white-space: pre-wrap;
+    font-family: "Fira Code", monospace;
+    padding: 8px;
+    border-radius: 6px;
+    overflow-x: auto;
+    margin-top: 10px;
+}
+
+#out.ok {
+    background: #f4fff4;
+    color: #064b00;
+    border: 1px solid #90c590;
+}
+
+#out.error {
+    background: #fff4f4;
+    color: #6b0000;
+    border: 1px solid #e79b9b;
+}
+
+#out.warn {
+    background: #fffbea;
+    color: #6b5900;
+    border: 1px solid #e6d884;
+}
+
 .topbar {
     background: #1f2937;
     color: white;

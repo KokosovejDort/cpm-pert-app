@@ -10,7 +10,12 @@ def validate_tasks(tasks: List[Dict[str, Any]]):
       - 'dependencies' must be a list of existing ids (no self-dependency)
     Raises ValueError with a clear message if invalid.
     """
-    if not isinstance(tasks, list) or not tasks:
+    print("DEBUG received:", type(tasks).__name__, tasks)
+    
+    if not isinstance(tasks, list):
+        raise ValueError("Wrong type of objects sent.")
+        
+    if not tasks:
         raise ValueError("Input must be a non-empty list of task objects")
 
     ids: List[str] = []

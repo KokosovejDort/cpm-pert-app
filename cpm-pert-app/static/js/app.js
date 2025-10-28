@@ -100,6 +100,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.getElementById("btn-analyze").onclick = async () => {
         const tasksFromTable = readTable();
+        out.className = "";
         out.textContent = "⏳ Analyzing...";
         try {
             const requestBody = JSON.stringify({ tasks: tasksFromTable });
@@ -109,14 +110,40 @@ document.addEventListener("DOMContentLoaded", () => {
                 body: requestBody
             });
 
-            const json = await response.json();
+            const text = await response.text();
+            if (!response.ok) {
+                let errorMsg;
+                try {
+                    const errJson = JSON.parse(text);
+                    errorMsg = errJson.error || JSON.stringify(errJson, null, 2);
+                } catch {
+                    errorMsg = text || `HTTP ${response.status}`;
+                }
 
-            if (json.ok) {
-                out.textContent = JSON.stringify(json.result, null, 2);
-            } 
-            else {
-                out.textContent = "❌ " + json.error;
+                out.className = "error";
+                out.textContent = "❌ Server returned an error:\n" + errorMsg;
+                return;
             }
+
+            let json;
+            try 
+            {
+                json = JSON.parse(text); 
+            } 
+            catch {
+                out.textContent =
+                "Received response but failed to parse JSON.\n\n" +
+                "Error: " + err.message + "\n\n" +
+                "Raw response:\n" + text;
+                return;
+            }
+            if (!json) {
+                out.className = "warn";
+                out.textContent =
+                    "⚠️ Empty or invalid JSON received despite OK status.\n\nRaw:\n" + text;
+                return;
+            }
+            out.textContent = JSON.stringify(json.result, null, 2);
         }
         catch (err) {
             out.textContent = "❌ Network or server error: " + err;
