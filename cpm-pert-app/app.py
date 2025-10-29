@@ -1,5 +1,6 @@
 from flask import Flask, jsonify, render_template, request
 from services.scheduling import analyze_schedule_with_nodes, validate_tasks
+from datetime import date
 
 app = Flask(__name__)
 PROJECT = {"tasks": []}
@@ -27,8 +28,14 @@ def analyze():
     try:
         data = request.get_json(force=True) or {}
         json = data.get("tasks", [])
+
+        projectStart = data.get("project_start")
+        if not projectStart:
+            projectStart = date.today().isoformat()
+
         validate_tasks(json)
         result = analyze_schedule_with_nodes(json)
+        result["project_start"] = projectStart
         return jsonify({"ok": True, "result": result})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 400

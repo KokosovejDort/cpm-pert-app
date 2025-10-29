@@ -10,10 +10,9 @@ def validate_tasks(tasks: List[Dict[str, Any]]):
       - 'dependencies' must be a list of existing ids (no self-dependency)
     Raises ValueError with a clear message if invalid.
     """
-    print("DEBUG received:", type(tasks).__name__, tasks)
     
     if not isinstance(tasks, list):
-        raise ValueError("Wrong type of objects sent.")
+        raise ValueError("Wrong type of objects sent")
         
     if not tasks:
         raise ValueError("Input must be a non-empty list of task objects")
@@ -168,7 +167,8 @@ def analyze_schedule_with_nodes(tasks: List[Dict[str, Any]]):
             "ls": ls[taskId],
             "lf": lf[taskId],
             "slack": slack[taskId],
-            "critical": abs(slack[taskId]) < 1e-6
+            "critical": abs(slack[taskId]) < 1e-6,
+            "dependencies": list(preds[taskId])
         })
 
     result_nodes: List[Dict[str, Any]] = []

@@ -1,60 +1,29 @@
-function parseDependencies(dependenciesText) {
-    if (!dependenciesText) return [];
-
-    const dependencies = dependenciesText.split(/[,;]/).map(dep => dep.trim()).filter(Boolean);
-    return dependencies
-}
-
-function readTable() {
-    const rows = document.querySelectorAll("tbody tr");
-
-    const tasks = [];
-    for (let i = 0; i < rows.length; i++) {
-        const row = rows[i];
-        const cells = row.querySelectorAll("td");
-
-        const id = cells[0].textContent.trim();
-        const name = cells[1].textContent.trim();
-        const duration = Number(cells[2].textContent.trim() || "0");
-        const dependencies = cells[3].textContent.trim();
-
-        if (id) {
-            const task = {
-                id: id,
-                name: name,
-                duration: duration,
-                dependencies: parseDependencies(dependencies) 
-            };
-            tasks.push(task);
-        }
+class HttpError extends Error {
+    constructor(status, bodyText) {
+        super(`HTTP ${status}`);
+        this.name = "HttpError";
+        this.status = status;
+        this.bodyText = bodyText; // raw string
     }
-    return tasks;
 }
-
-function getNextId() {
-    const rows = document.querySelectorAll("tbody tr");
-    if (rows.length === 0)
-        return "A";
-
-    const lastRow = rows[rows.length - 1]
-    const lastId = lastRow.querySelectorAll("td")[0].textContent.trim();
-    if (lastId.match(/^[A-Y]$/)) 
-        return String.fromCharCode(lastId.charCodeAt(0) + 1);
-    if (lastId === "Z") 
-        return "A1";
-    if (lastId.match(/^[A-Z]\d+$/)) {
-        const letter = lastId[0];
-        const number = parseInt(lastId.slice(1));
-        
-        if (letter !== "Z") 
-            return String.fromCharCode(letter.charCodeAt(0) + 1) + number;
-        else 
-            return "A" + (number + 1);
-        
+class JsonParseError extends Error {
+    constructor(message, rawText) {
+        super(message);
+        this.name = "JsonParseError";
+        this.rawText = rawText;
     }
-    
-    return "A";
 }
+class MappingError extends Error {
+    constructor(message) {
+        super(message);
+        this.name = "MappingError";
+    }
+}
+
+function show(out, kind, text) {
+    out.className = kind; 
+    out.textContent = text;
+  }
 
 document.addEventListener("DOMContentLoaded", () => {
     const out = document.getElementById("out");
@@ -99,10 +68,8 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     document.getElementById("btn-analyze").onclick = async () => {
-        const tasksFromTable = readTable();
-        out.className = "";
-        out.textContent = "⏳ Analyzing...";
         try {
+            const tasksFromTable = readTable();
             const requestBody = JSON.stringify({ tasks: tasksFromTable });
             const response = await fetch("/api/analyze", {
                 method: "POST",
@@ -111,42 +78,51 @@ document.addEventListener("DOMContentLoaded", () => {
             });
 
             const text = await response.text();
-            if (!response.ok) {
-                let errorMsg;
-                try {
-                    const errJson = JSON.parse(text);
-                    errorMsg = errJson.error || JSON.stringify(errJson, null, 2);
-                } catch {
-                    errorMsg = text || `HTTP ${response.status}`;
-                }
-
-                out.className = "error";
-                out.textContent = "❌ Server returned an error:\n" + errorMsg;
-                return;
-            }
+            if (!response.ok) 
+                throw new HttpError(response.status, text);
 
             let json;
-            try 
-            {
-                json = JSON.parse(text); 
-            } 
-            catch {
-                out.textContent =
-                "Received response but failed to parse JSON.\n\n" +
-                "Error: " + err.message + "\n\n" +
-                "Raw response:\n" + text;
-                return;
+            try { json = JSON.parse(text); }
+            catch (jsonErr) { throw new JsonParseError(jsonErr.message, text); }
+
+            if (!json || typeof json !== "object" || !json.result) {
+                throw new Error("Invalid payload shape: missing 'result'.");
             }
-            if (!json) {
-                out.className = "warn";
-                out.textContent =
-                    "⚠️ Empty or invalid JSON received despite OK status.\n\nRaw:\n" + text;
-                return;
-            }
+
+            out.className = "ok";
             out.textContent = JSON.stringify(json.result, null, 2);
+
+            let projectStartISO;
+            let items;
+            try {
+                const mapped = mapCpmToGantt(json.result);
+                projectStartISO = mapped.projectStartISO;
+                items = mapped.items;
+            } catch (mappingErr) {
+                throw new MappingError(mappingErr.message);
+            }
         }
         catch (err) {
-            out.textContent = "❌ Network or server error: " + err;
+            if (err instanceof HttpError) {
+                let msg = err.bodyText;
+                try {
+                    const j = JSON.parse(err.bodyText);
+                    msg = j.error || JSON.stringify(j, null, 2);
+                } 
+                catch {  }
+                show(out, "error", `HttpError: Server returned an error:\n${msg}`);
+            }
+            else if (err instanceof JsonParseError) {
+                show(out, "warn",
+                `Response OK but JSON parse failed.\n\JsonParseError: ${err.message}\n\nRaw response:\n${err.rawText}`);
+            }
+            else if (err instanceof MappingError) {
+                show(out, "error",
+                `Mapping to Gantt data failed.\n\MappingError: ${err.message}`);
+            }
+            else {
+                show(out, "error", `Network or script error:\n${err.message || err}`);
+            }
         }
     }
 });
