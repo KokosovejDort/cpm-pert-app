@@ -1,39 +1,13 @@
+/* ------------------ Base ------------------ */
 body {
     font-family: system-ui, Arial, sans-serif;
     margin: 0;
     background: #f5f5f5;
 }
 
-#out {
-    white-space: pre-wrap;
-    font-family: "Fira Code", monospace;
-    padding: 8px;
-    border-radius: 6px;
-    overflow-x: auto;
-    margin-top: 10px;
-}
-
-#out.ok {
-    background: #f4fff4;
-    color: #064b00;
-    border: 1px solid #90c590;
-}
-
-#out.error {
-    background: #fff4f4;
-    color: #6b0000;
-    border: 1px solid #e79b9b;
-}
-
-#out.warn {
-    background: #fffbea;
-    color: #6b5900;
-    border: 1px solid #e6d884;
-}
-
 .topbar {
     background: #1f2937;
-    color: white;
+    color: #fff;
     padding: 12px 16px;
     font-weight: 600;
 }
@@ -43,17 +17,107 @@ body {
     max-width: 1200px;
     margin: 0 auto;
 }
+.panel {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    padding: 12px;
+    margin-top: 12px;
+}
+  
+  /* The out */
+#out {
+    white-space: pre-wrap;
+    font-family: "Fira Code", ui-monospace, Menlo, Consolas, monospace;
+    border-radius: 6px;
+    overflow-x: auto;
+    margin-top: 10px;
+    padding: 8px;              
+    border: 1px solid transparent;
+}
+#out.ok {
+    background: #f4fff4;
+    color: #064b00;
+    border-color: #90c590;
+}
+#out.error {
+    background: #fff4f4;
+    color: #6b0000;
+    border-color: #e79b9b;
+}
+#out.warn {
+    background: #fffbea;
+    color: #6b5900;
+    border-color: #e6d884;
+}
+  
+  /* CPM summary */
+#cpm-summary {
+    background: #f9fafb;
+}
+  
+  /* ------------------ Table ------------------ */
+.cpm-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    overflow: hidden;             
+    margin-top: 8px;
+    font-family: inherit;
+}
+.cpm-table th,
+.cpm-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid #f3f4f6;
+    text-align: center;           
+    vertical-align: middle;
+}
+.cpm-table th {
+    background: #f3f4f6;
+    font-weight: 600;
+    color: #111827;
+}
+.cpm-table tr:last-child td {
+    border-bottom: 0;
+}
 
+.cpm-mono {
+    font-family: "Fira Code", ui-monospace, Menlo, Consolas, monospace;
+}
+ 
+.cpm-row-critical {
+    background: #fff1f2;
+}
+  /* ------------------ Badges ------------------ */
+.badge {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 999px;
+    font-size: 12px;
+    line-height: 1.2;
+    border: 1px solid #e5e7eb;
+    background: #f9fafb;
+}
+.badge-critical {
+    background: #fee2e2;
+    border-color: #fecaca;
+    color: #7f1d1d;
+}
+  
+  /* ------------------ Buttons ------------------ */
 button {
     margin-right: 8px;
     padding: 6px 12px;
     background: #3b82f6;
-    color: white;
+    color: #fff;
     border: none;
     border-radius: 4px;
     cursor: pointer;
 }
-
 button:hover {
     background: #2563eb;
 }
+
+  

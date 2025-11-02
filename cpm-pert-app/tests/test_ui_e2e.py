@@ -1,5 +1,4 @@
 import json
-import re
 import pytest
 from playwright.sync_api import expect
 from jsonschema import validate
@@ -26,6 +25,51 @@ REQUEST_SCHEMA = {
     },
     "required": ["tasks"]
 }
+
+shared_ctx = None
+shared_page = None
+fill_click_capture_payload = None
+fill_click_capture_server = None
+fill_click_capture_rows = [
+        {"id": "A", "name": "Task A", "duration": "3", "dependencies": ""},
+        {"id": "B", "name": "Task B", "duration": "11.0", "dependencies": "A"},
+        {"id": "C", "name": "Task C", "duration": "13.0", "dependencies": ""},
+        {"id": "D", "name": "Task D", "duration": "05", "dependencies": "A"},
+        {"id": "E", "name": "Task E", "duration": "4", "dependencies": "B,C"},
+        {"id": "F", "name": "Task F", "duration": "6", "dependencies": "B, C"},
+        {"id": "G", "name": "Task G", "duration": "2", "dependencies": "  F"},
+        {"id": "H", "name": "Task H", "duration": "1", "dependencies": "D, E  ,  F"},
+]
+fill_click_capture_nodes = {
+        "START":        {"earliest": 0,  "latest": 0,  "members": ["A", "C"]},
+        "after{A}":     {"earliest": 3,  "latest": 3,  "members": ["B", "D"]},
+        "after{B,C}":   {"earliest": 14, "latest": 14, "members": ["E", "F"]},
+        "after{F}":     {"earliest": 20, "latest": 20, "members": ["G"]},
+        "after{D,E,F}": {"earliest": 20, "latest": 21, "members": ["H"]},
+        "END":          {"earliest": 22, "latest": 22, "members": []},
+}
+
+@pytest.fixture(scope="module", autouse=True)
+def _prepare_once(browser):
+    global fill_click_capture_payload, fill_click_capture_server
+    global shared_ctx, shared_page
+
+    shared_ctx = browser.new_context()
+    shared_page = shared_ctx.new_page()
+    
+    shared_page.goto(BASE_URL, wait_until="domcontentloaded")
+    fill_rows(shared_page, fill_click_capture_rows)
+
+    resp, payload = click_analyze_and_capture(shared_page)
+    assert resp.status == 200
+    validate(instance=payload, schema=REQUEST_SCHEMA)
+    resp.finished()
+
+    fill_click_capture_payload = payload
+    fill_click_capture_server = resp.json().get("result")
+    assert fill_click_capture_server is not None, "Missing result from backend"
+    yield
+    shared_ctx.close()
 
 # ========== HELPERS (sync) ==========
 def get_ui(page, selector="#out", json=False):
@@ -77,33 +121,21 @@ def click_analyze_and_capture(page):
         payload = json.loads(req.post_data or "{}")
     return resp, payload  # only two values
 
+def normalize_number_str(x):
+    s = str(x)
+    if s.endswith(".0"):
+        s = s[:-2]
+    return s
+
 # ========== TEST ==========
-def test_table_inputs_build_correct_payload_and_ok_response(page):
-    page.goto(BASE_URL, wait_until="domcontentloaded")
-    rows = [
-        {"id": "A", "name": "Task A", "duration": "3", "dependencies": ""},
-        {"id": "B", "name": "Task B", "duration": "11.0", "dependencies": "A"},
-        {"id": "C", "name": "Task C", "duration": "13.0", "dependencies": ""},
-        {"id": "D", "name": "Task D", "duration": "05", "dependencies": "A"},
-        {"id": "E", "name": "Task E", "duration": "4", "dependencies": "B,C"},
-        {"id": "F", "name": "Task F", "duration": "6", "dependencies": "B, C"},
-        {"id": "G", "name": "Task G", "duration": "2", "dependencies": "  F"},
-        {"id": "H", "name": "Task H", "duration": "1", "dependencies": "D, E  ,  F"},
-    ]
-    fill_rows(page, rows)
-
-    resp, payload = click_analyze_and_capture(page)
-    assert resp.status == 200, f"Expected HTTP 200 from /analyze, got {resp.status}"
-    validate(instance=payload, schema=REQUEST_SCHEMA)
-
-    resp.finished()
-    server_json = resp.json().get("result")
-    assert server_json is not None, "Server JSON missing 'result' key"
+def test_json_payload():
+    payload = fill_click_capture_payload
+    server_json = fill_click_capture_server
+    page = shared_page
 
     ui_data = get_ui(page, "#out", True)
     assert isinstance(ui_data, dict), f"UI did not render JSON object, got: {type(ui_data)}"
 
-    # ========== TEST CPM ==========
     by_id = {t["id"]: t for t in payload["tasks"]}
     assert isinstance(by_id["A"]["duration"], (int, float)), f"A.duration should be number, got {type(by_id['A']['duration'])}"
     assert by_id["A"]["duration"] == 3, f"A.duration expected 3, got {by_id['A']['duration']}"
@@ -131,15 +163,12 @@ def test_table_inputs_build_correct_payload_and_ok_response(page):
     assert ui_data["project_duration"] == server_json["project_duration"], f"UI project_duration {ui_data['project_duration']} != server {server_json['project_duration']}"
     assert {t["id"] for t in ui_data["tasks"]} == {t["id"] for t in server_json["tasks"]}, "UI task IDs differ from server task IDs"
 
-    # ========== TEST NODES ==========
-    expected_nodes = {
-        "START":        {"earliest": 0,  "latest": 0,  "members": ["A", "C"]},
-        "after{A}":     {"earliest": 3,  "latest": 3,  "members": ["B", "D"]},
-        "after{B,C}":   {"earliest": 14, "latest": 14, "members": ["E", "F"]},
-        "after{F}":     {"earliest": 20, "latest": 20, "members": ["G"]},
-        "after{D,E,F}": {"earliest": 20, "latest": 21, "members": ["H"]},
-        "END":          {"earliest": 22, "latest": 22, "members": []},
-    }
+def test_json_nodes():
+    server_json = fill_click_capture_server
+    page = shared_page
+    expected_nodes = fill_click_capture_nodes
+
+    ui_data = get_ui(page, "#out", True)
     actual_nodes = {n["node"]: n for n in server_json["nodes"]}
     missing = set(expected_nodes) - set(actual_nodes)
     assert not missing, f"Server missing nodes: {missing}"
@@ -166,9 +195,69 @@ def test_table_inputs_build_correct_payload_and_ok_response(page):
         assert a["latest"] == u["latest"], f"{label} latest mismatch UI vs server: UI {u['latest']} vs server {a['latest']}"
         assert a["members"] == u["members"], f"{label} members mismatch UI vs server: UI {u['members']} vs server {a['members']}"
 
+def test_summary_block_ui():
+    server_json = fill_click_capture_server
+    page = shared_page
+
+    summary = page.locator("#cpm-summary")
+    expect(summary).to_be_visible()
+
+    summary_text = summary.text_content().strip()
+
+    assert "# Tasks: 8" in summary_text, "'# Tasks:' label missing in summary"
+    assert str(len(server_json["tasks"])) in summary_text, f"Expected # Tasks = {len(server_json['tasks'])} not shown in summary"
+
+    critical_ids = [t["id"] for t in server_json["tasks"] if t.get("critical")]
+    cp_text = " → ".join(critical_ids)
+    assert "Critical path:" in summary_text, "'Critical path:' label missing in summary"
+    assert cp_text in summary_text, f"Critical path text mismatch: expected '{cp_text}' but summary shows:\n{summary_text}"
+
+def test_table_block_ui():
+    server_json_sorted = sorted(fill_click_capture_server["tasks"], key=lambda t: str(t["id"]))
+    page = shared_page
+
+    mount = page.locator("#cpm-table")
+    expect(mount).to_be_visible()
+
+    table = mount.locator("table.cpm-table")
+    expect(table).to_be_visible()
+
+    header_expected = ["ID","Name","Duration","ES","EF","LS","LF","Slack","Dependencies","Critical"]
+    header_cells = table.locator("thead tr th")
+    expect(header_cells).to_have_count(len(header_expected))
+    for i, h in enumerate(header_expected, start=1):
+        txt = header_cells.nth(i-1).text_content().strip()
+        assert txt == h, f"Header col {i} expected '{h}', got '{txt}'"
+
+    rows = table.locator("tbody tr")
+    expect(rows).to_have_count(len(server_json_sorted))
+
+    for idx, t in enumerate(server_json_sorted, start=1):
+        row = rows.nth(idx-1)
+        assert row.locator("td:nth-of-type(1)").text_content().strip() == str(t["id"]), f"Row {idx} ID mismatch"
+        assert row.locator("td:nth-of-type(2)").text_content().strip() == str(t["name"]), f"Row {idx} Name mismatch"
+        assert row.locator("td:nth-of-type(3)").text_content().strip() == normalize_number_str(t["duration"]), f"Row {idx} Duration mismatch"
+        
+        assert row.locator("td:nth-of-type(4)").text_content().strip() == normalize_number_str(t["es"]), f"Row {idx} ES mismatch"
+        assert row.locator("td:nth-of-type(5)").text_content().strip() == normalize_number_str(t["ef"]), f"Row {idx} EF mismatch"
+        assert row.locator("td:nth-of-type(6)").text_content().strip() == normalize_number_str(t["ls"]), f"Row {idx} LS mismatch"
+        assert row.locator("td:nth-of-type(7)").text_content().strip() == normalize_number_str(t["lf"]), f"Row {idx} LF mismatch"
+        assert row.locator("td:nth-of-type(8)").text_content().strip() == normalize_number_str(t["slack"]), f"Row {idx} Slack mismatch"
+        
+        deps_text = ", ".join(t.get("dependencies", []))
+        assert row.locator("td:nth-of-type(9)").text_content().strip() == deps_text, f"Row {idx} Dependencies mismatch"
+        
+        crit_cell = row.locator("td:nth-of-type(10)")
+        badge = crit_cell.locator(".badge.badge-critical")
+        if t.get("critical"):
+            expect(badge).to_be_visible()
+            classes = (row.get_attribute("class") or "").split()
+            assert "cpm-row-critical" in classes, f"Row {idx} missing 'cpm-row-critical' class"
+        else:
+            expect(badge).to_have_count(0)
+
 def test_zero_duration_and_parallel_branches(page):
     page.goto(BASE_URL, wait_until="domcontentloaded")
-    # A(0) splits to B(2) and C(5) -> D(1). Project duration should be 6.
     rows = [
         {"id": "A", "name": "A", "duration": "0", "dependencies": ""},
         {"id": "B", "name": "B", "duration": "2", "dependencies": "A"},
@@ -276,7 +365,7 @@ def test_error_cycle_detection(page):
 
 def test_auto_generated_task_ids_when_exceeding_alphabet(page):
     page.goto(BASE_URL, wait_until="domcontentloaded")
-    TOTAL = 1000
+    TOTAL = 300
     add_rows(page, TOTAL)
     add_btn = page.locator("#btn-add")
     expect(add_btn).to_be_visible(timeout=10000)

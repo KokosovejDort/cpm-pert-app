@@ -31,6 +31,65 @@ function readTable() {
     return tasks;
 }
 
+function renderCpmSummary(result) {
+    const box = document.getElementById("cpm-summary");
+    const dur = result.project_duration;
+    const criticalIds = (result.tasks || [])
+      .filter(t => t.critical)
+      .map(t => t.id);
+  
+    box.innerHTML = `
+      <div><strong>Project duration:</strong> <span class="cpm-mono">${dur}</span> day(s)</div>
+      <div><strong>Critical path:</strong> <span class="cpm-mono">${criticalIds.join(" → ") || "-"}</span></div>
+      <div><strong># Tasks:</strong> <span class="cpm-mono">${result.tasks?.length || 0}</span></div>
+    `;
+  }
+  
+function renderCpmTable(result) {
+    const mount = document.getElementById("cpm-table");
+    const tasks = Array.isArray(result.tasks) ? result.tasks : [];
+    tasks.sort((a, b) => String(a.id).localeCompare(String(b.id)));
+
+    const headerCols = [
+        "ID",
+        "Name",
+        "Duration",
+        "ES",
+        "EF",
+        "LS",
+        "LF",
+        "Slack",
+        "Dependencies",
+        "Critical"
+    ];
+  
+    const header = `
+    <thead>
+      <tr>${headerCols.map(h => `<th>${h}</th>`).join("")}</tr>
+    </thead>`;
+  
+    const body = tasks.map(t => {
+        const deps = Array.isArray(t.dependencies) ? t.dependencies.join(", ") : "";
+        const rowClass = t.critical ? "cpm-row-critical" : "";
+
+        const cells = [
+            `<td class="cpm-mono">${t.id}</td>`,
+            `<td class="cpm-mono">${t.name}</td>`,
+            `<td class="cpm-mono">${t.duration}</td>`,
+            `<td class="cpm-mono" title="Early Start">${t.es}</td>`,
+            `<td class="cpm-mono" title="Early Finish">${t.ef}</td>`,
+            `<td class="cpm-mono" title="Late Start">${t.ls}</td>`,
+            `<td class="cpm-mono" title="Late Finish">${t.lf}</td>`,
+            `<td class="cpm-mono" title="Total Slack">${t.slack}</td>`,
+            `<td class="cpm-mono">${deps}</td>`,
+            `<td>${t.critical ? '<span class="badge badge-critical">Critical</span>' : ""}</td>`
+        ];
+
+        return `<tr class="${rowClass}">${cells.join("")}</tr>`;
+    }).join("")
+    mount.innerHTML = `<table class="cpm-table">${header}<tbody>${body}</tbody></table>`;
+}
+
 function getNextId() {
     const rows = document.querySelectorAll("tbody tr");
     if (rows.length === 0)

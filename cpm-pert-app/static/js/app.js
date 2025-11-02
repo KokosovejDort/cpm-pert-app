@@ -91,6 +91,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
             out.className = "ok";
             out.textContent = JSON.stringify(json.result, null, 2);
+            renderCpmSummary(json.result);
+            renderCpmTable(json.result);
+
 
             let projectStartISO;
             let items;
@@ -103,6 +106,9 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         }
         catch (err) {
+            document.getElementById("cpm-summary").innerHTML = "";
+            document.getElementById("cpm-table").innerHTML = "";
+
             if (err instanceof HttpError) {
                 let msg = err.bodyText;
                 try {
