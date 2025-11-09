@@ -140,27 +140,55 @@ function mapCpmToGantt(result) {
         throw new Error("Invalid CPM result: missing project_start.");
     }
 
-    console.log("toISODate(new Date()", toISODate(new Date()));
-    console.log("parseISODate", parseISODate(startISO || toISODate(new Date())));
-
     const startBase = parseISODate(startISO || toISODate(new Date()));
-    console.log("startBase", startBase);
     const items = result.tasks.map(t => {
         const depsArray = Array.isArray(t.dependencies) ? t.dependencies : [];
         const startDate = addDays(startBase, t.es);
-        console.log("startDate", startDate);
         const endDate   = addDays(startBase, t.ef);
-        console.log("endDate", endDate);
-
         return {
             id: t.id,
             name: t.name || t.id,
-            start: startDate,
-            end: endDate,
+            start: toISODate(startDate),
+            end: toISODate(endDate),
             dependencies: depsArray.join(","),
-            cpm: { es: t.es, ef: t.ef, ls: t.ls, lf: t.lf, slack: t.slack, critical: t.critical }
+            custom_class: t.critical ? "bar-critical" : "",
+            es: t.es, 
+            ef: t.ef, 
+            ls: t.ls, 
+            lf: t.lf, 
+            slack: t.slack, 
+            critical: t.critical 
         };
     });
     
-    return { projectStartISO: toISODate(startBase), items}
+    return { projectStart: startBase, items}
+}
+
+function renderGantt(result) {
+    let ganttInstance = null;
+    const items = result.items.map(t => ({
+        id: t.id,
+        name: t.name,
+        start: toISODate(addDays(result.projectStart, t.es)),
+        end: toISODate(addDays(result.projectStart, t.ef)),
+        dependencies: t.dependencies || "",
+        custom_class: t.custom_class || "" ,
+        cpm: { es: t.es, ef: t.ef, ls: t.ls, lf: t.lf, slack: t.slack }
+    }));
+    const mount = document.getElementById("gantt");
+    mount.innerHTML = "";
+    ganttInstance = new Gantt(mount, items, {
+        view_mode: "Day", 
+        date_format: "YYYY-MM-DD",
+        custom_popup_html: (task) => {
+        return `
+            <div class="panel" style="padding:8px;">
+                <div><strong>${task.name}</strong> (${task.id})</div>
+                <div><small>${task.start} → ${task.end}</small></div>
+                <div class="cpm-mono" style="margin-top:4px;">
+                    ES ${task.cpm.es}, EF ${task.cpm.ef}, LS ${task.cpm.ls}, LF ${task.cpm.lf}, Slack ${task.cpm.slack}
+                </div>
+            </div>;`
+        }
+    });
 }

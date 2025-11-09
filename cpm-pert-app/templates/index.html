@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <title>CPM/PERT Scheduler</title>
     <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/frappe-gantt/dist/frappe-gantt.css">
   </head>
   <body>
     <header class="topbar">CPM/PERT Scheduler</header>
@@ -20,6 +21,9 @@
       </div>
 
       <h3 style="margin-top: 16px;">Tasks JSON</h3>
+      <div id="gantt-panel" class="panel">
+        <div id="gantt"></div>
+      </div>
       <table border="1" cellpadding="6">
         <thead>
           <tr>
@@ -46,6 +50,7 @@
         <button id="btn-analyze">Analyze (CPM)</button>
       </div>
     </main>
+    <script src="https://unpkg.com/frappe-gantt/dist/frappe-gantt.umd.js"></script>s
     <script src="{{ url_for('static', filename='js/utility.js') }}"></script>
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
   </body>

@@ -94,13 +94,9 @@ document.addEventListener("DOMContentLoaded", () => {
             renderCpmSummary(json.result);
             renderCpmTable(json.result);
 
-
-            let projectStartISO;
-            let items;
             try {
                 const mapped = mapCpmToGantt(json.result);
-                projectStartISO = mapped.projectStartISO;
-                items = mapped.items;
+                renderGantt(mapped);
             } catch (mappingErr) {
                 throw new MappingError(mappingErr.message);
             }

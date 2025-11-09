@@ -105,6 +105,17 @@ body {
     border-color: #fecaca;
     color: #7f1d1d;
 }
+
+ /* ------------------ Gantt ------------------ */
+#gantt {
+    min-height: 420px;
+    overflow-x: auto; 
+}
+.gantt .bar-critical { 
+    fill: #ef4444;
+    stroke: #b91c1c;
+    fill-opacity: 0.95;
+}
   
   /* ------------------ Buttons ------------------ */
 button {
