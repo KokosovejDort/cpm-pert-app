@@ -1,0 +1,30 @@
+#gantt .bar, #gantt .bar-progress { rx: 8px; ry: 8px; }
+#gantt .bar { fill: #fff; stroke: #cbd5e1; stroke-width: 1.5px; }
+
+#gantt .bar-wrapper.noncrit .bar-progress { fill: #2563eb; }
+#gantt .bar-wrapper.noncrit .bar          { stroke: #93c5fd; }
+#gantt .bar-wrapper.crit .bar-progress    { fill: #dc2626; }
+#gantt .bar-wrapper.crit .bar             { stroke: #b91c1c; }
+
+#gantt .bar-label {
+  fill: #ffffff;
+  font-weight: 700;
+  font-size: 12px;
+  paint-order: stroke fill;
+  stroke: rgba(0,0,0,.25);
+  stroke-width: 2px;
+}
+
+#gantt-panel { overflow: visible !important; }
+#gantt {
+    position: relative;
+    overflow: visible;    
+    padding-bottom: 96px;  
+    min-height: 360px;
+}
+#gantt svg.gantt { overflow: visible; }
+
+#gantt .bar-wrapper.spacer .bar,
+#gantt .bar-wrapper.spacer .bar-progress,
+#gantt .bar-wrapper.spacer .bar-label,
+#gantt .bar-wrapper.spacer .handle-group { display: none; }

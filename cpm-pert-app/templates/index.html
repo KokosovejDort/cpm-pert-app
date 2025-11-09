@@ -3,8 +3,9 @@
   <head>
     <meta charset="utf-8">
     <title>CPM/PERT Scheduler</title>
-    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/style.css') }}?v=1" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/frappe-gantt/dist/frappe-gantt.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/gantt.css') }}?v=42">
   </head>
   <body>
     <header class="topbar">CPM/PERT Scheduler</header>
@@ -50,8 +51,8 @@
         <button id="btn-analyze">Analyze (CPM)</button>
       </div>
     </main>
-    <script src="https://unpkg.com/frappe-gantt/dist/frappe-gantt.umd.js"></script>s
-    <script src="{{ url_for('static', filename='js/utility.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    <script src="https://unpkg.com/frappe-gantt/dist/frappe-gantt.umd.js"></script>
+    <script src="{{ url_for('static', filename='js/utility.js') }}?v=2"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}?v=1"></script>
   </body>
 </html>

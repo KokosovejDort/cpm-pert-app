@@ -151,7 +151,6 @@ function mapCpmToGantt(result) {
             start: toISODate(startDate),
             end: toISODate(endDate),
             dependencies: depsArray.join(","),
-            custom_class: t.critical ? "bar-critical" : "",
             es: t.es, 
             ef: t.ef, 
             ls: t.ls, 
@@ -165,30 +164,57 @@ function mapCpmToGantt(result) {
 }
 
 function renderGantt(result) {
-    let ganttInstance = null;
-    const items = result.items.map(t => ({
-        id: t.id,
-        name: t.name,
-        start: toISODate(addDays(result.projectStart, t.es)),
-        end: toISODate(addDays(result.projectStart, t.ef)),
-        dependencies: t.dependencies || "",
-        custom_class: t.custom_class || "" ,
-        cpm: { es: t.es, ef: t.ef, ls: t.ls, lf: t.lf, slack: t.slack }
-    }));
+    console.log('renderGantt v9 items:', result.items);
+    const BAR_HEIGHT = 28;
+    const ROW_PADDING = 22;
+    const HEADER_HEIGHT = 56;
+
+    const items = result.items.map(t => {
+        const startISO = toISODate(addDays(result.projectStart, t.es));
+        const endISO   = toISODate(addDays(result.projectStart, t.lf));
+
+        const windowDays = Math.max(1, t.lf - t.es);
+        const durDays    = Math.max(0, t.ef - t.es);
+        const fillPercent   = Math.min(100, Math.round((durDays / windowDays) * 100));
+
+        return {
+            id: t.id,
+            name: t.name,
+            start: startISO,          
+            end: endISO,              
+            progress: fillPercent,                
+            dependencies: t.dependencies || "",
+            custom_class: t.critical ? "crit" : "noncrit",
+            cpm: { es: t.es, ef: t.ef, ls: t.ls, lf: t.lf, slack: t.slack }
+        };
+    });
+
+    const EXTRA_BOTTOM_ROWS = 2; 
+    for (let i = 0; i < EXTRA_BOTTOM_ROWS; i++) {
+        const anchorISO = items[0]?.start || toISODate(result.projectStart);
+        items.push({
+            id: `__spacer_${i}`,
+            name: "",
+            start: anchorISO,          
+            end: anchorISO,
+            progress: 0,
+            dependencies: "",
+            custom_class: "spacer"     
+        });
+    }
+
     const mount = document.getElementById("gantt");
     mount.innerHTML = "";
-    ganttInstance = new Gantt(mount, items, {
-        view_mode: "Day", 
-        date_format: "YYYY-MM-DD",
-        custom_popup_html: (task) => {
-        return `
-            <div class="panel" style="padding:8px;">
-                <div><strong>${task.name}</strong> (${task.id})</div>
-                <div><small>${task.start} → ${task.end}</small></div>
-                <div class="cpm-mono" style="margin-top:4px;">
-                    ES ${task.cpm.es}, EF ${task.cpm.ef}, LS ${task.cpm.ls}, LF ${task.cpm.lf}, Slack ${task.cpm.slack}
-                </div>
-            </div>;`
-        }
+    const rows = items.length;
+    const minH = rows * (BAR_HEIGHT + ROW_PADDING) + HEADER_HEIGHT + 80;
+    mount.style.minHeight = Math.max(minH, 360) + "px";
+    
+    new Gantt(mount, items, {
+        view_mode: "Day",
+        bar_height: BAR_HEIGHT,
+        padding: ROW_PADDING,
+        olumn_width: 36,
+        fit_width: false,
+        popup_on: "none"
     });
 }
