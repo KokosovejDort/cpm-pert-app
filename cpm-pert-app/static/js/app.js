@@ -74,6 +74,11 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     };
 
+    const fileInput = document.getElementById("file-upload");
+    if (fileInput) {
+        fileInput.addEventListener("change", handleFileUpload);
+    }
+
     document.getElementById("btn-analyze").onclick = async () => {
         try {
             const tasksFromTable = readTable();

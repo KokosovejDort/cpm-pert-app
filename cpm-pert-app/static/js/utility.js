@@ -1,3 +1,100 @@
+function handleFileUpload(event) {
+    const file = event.target.files[0];
+    if (!file) {
+        return
+    }
+    const tbody = document.querySelector("tbody");
+    if (tbody) {
+        tbody.innerHTML = "";
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const text = e.target.result;
+        try {
+            const tasks = parseCpmCsv(text);
+            applyTasksToTable(tasks);
+        }
+        catch (err) {
+            alert("Failed to import CSV: " + err.message);
+            console.error(err);
+        }
+    }
+    reader.readAsText(file);
+}
+
+function parseCpmCsv(text) {
+    const lines = text
+        .split(/\r?\n/)              
+        .map(l => l.trim())          
+        .filter(l => l.length > 0);
+
+    if (lines.length < 2) {
+        throw new Error("CSV must contain a header and at least one data row.");
+    }
+    const dataLines = lines.slice(1);
+    const tasks = []
+    dataLines.forEach((line, idx) => {
+        const rowNumber = idx + 2;
+        const cols = line.split(",").map(c => c.trim());
+        if (cols.length < 3) {
+            throw new Error(`Row ${rowNumber}: expected at least 3 columns (ID, predecessors, duration).`);
+        }
+        const idRaw = cols[0] || "";
+        const prRaw = cols[1] || "";
+        const duRaw = cols[2] || "";
+        if (!idRaw) {
+            throw new Error(`Row ${rowNumber}: missing activity ID in first column.`);
+        }
+        const duration = Number(duRaw);
+        if (!isFinite(duration)) {
+            throw new Error(`Row ${rowNumber}: invalid duration '${duRaw}'.`);
+        }
+        const depsArray = parseCsvPredecessors(prRaw);
+        tasks.push({
+            id: idRaw,
+            name: idRaw,                     
+            duration: String(duration),      
+            dependencies: depsArray.join(", ")  
+        });
+    });
+    return tasks;
+}
+
+function applyTasksToTable(tasks) {
+    const tbody = document.querySelector("tbody");
+    tbody.innerHTML = "";
+    tasks.forEach(task => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+            <td contenteditable="true"></td>
+            <td contenteditable="true"></td>
+            <td contenteditable="true"></td>
+            <td contenteditable="true"></td>
+            <td><button class="btn-del">Delete</button></td>
+        `;
+        const cells = tr.querySelectorAll("td");
+        cells[0].textContent = task.id;  
+        cells[1].textContent = task.name || task.id; 
+        cells[2].textContent = String(task.duration || "0");
+        cells[3].textContent = task.dependencies || "";
+        tbody.appendChild(tr);
+    });
+}
+
+function parseCsvPredecessors(prCell) {
+    const trimmed = (prCell || "").trim();
+    if (!trimmed || trimmed === "-") {
+        return [];
+    }
+    if (/[,\s;]/.test(trimmed)) {
+        return trimmed
+            .split(/[,\s;]+/)
+            .map(x => x.trim())
+            .filter(Boolean);
+    }
+    return trimmed.split("").filter(Boolean);
+}
+
 function parseDependencies(dependenciesText) {
     if (!dependenciesText) return [];
 
