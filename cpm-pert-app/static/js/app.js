@@ -3,7 +3,7 @@ class HttpError extends Error {
         super(`HTTP ${status}`);
         this.name = "HttpError";
         this.status = status;
-        this.bodyText = bodyText; // raw string
+        this.bodyText = bodyText;
     }
 }
 class JsonParseError extends Error {
@@ -20,10 +20,17 @@ class MappingError extends Error {
     }
 }
 
+class AoARenderError extends Error {
+    constructor(message) {
+        super(message);
+        this.name = "AoARenderError";
+    }
+}
+
 function show(out, kind, text) {
     out.className = kind; 
     out.textContent = text;
-  }
+}
 
 document.addEventListener("DOMContentLoaded", () => {
     const out = document.getElementById("out");
@@ -100,6 +107,12 @@ document.addEventListener("DOMContentLoaded", () => {
             } catch (mappingErr) {
                 throw new MappingError(mappingErr.message);
             }
+
+            try {
+                renderCpmAoA(json.result)
+            } catch (aoaErr) {
+                throw new AoARenderError(aoaErr.message || String (aoaErr))
+            }
         }
         catch (err) {
             document.getElementById("cpm-summary").innerHTML = "";
@@ -121,6 +134,10 @@ document.addEventListener("DOMContentLoaded", () => {
             else if (err instanceof MappingError) {
                 show(out, "error",
                 `Mapping to Gantt data failed.\n\MappingError: ${err.message}`);
+            }
+            else if (err instanceof AoARenderError) {
+                show(out, "error",
+                `Rendering CPM network (AoA) failed.\n\AoARenderError: ${err.message}`);
             }
             else {
                 show(out, "error", `Network or script error:\n${err.message || err}`);

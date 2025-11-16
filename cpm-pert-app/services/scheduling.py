@@ -156,8 +156,52 @@ def analyze_schedule_with_nodes(tasks: List[Dict[str, Any]]):
     es, ef, ls, lf, slack, projectDuration, preds, succs, topology, dur = cpm_aon(tasks)
     nodes = derive_event_nodes(es, ef, ls, lf, preds, projectDuration)
 
+    task_to_tail: Dict[str, Any] = {}
+    for key, data in nodes.items():
+        for t in data["members"]:
+            task_to_tail[t] = key
+
+    task_to_head: Dict[str, Any] = {}
+    for taskId in topology:
+        succ_list = list(succs[taskId])
+        if not succ_list:
+            task_to_head[taskId] = "END"
+            continue
+        succ_set = set(succ_list)
+        found = False
+        for node_key, data in nodes.items():
+            members_set = set(data["members"])
+            if succ_set.issubset(members_set):
+                task_to_head[taskId] = node_key
+                found = True
+                break
+        if not found:
+            raise ValueError(f"No HEAD event found for task {taskId} with successors {succ_list}")
+            
+    result_nodes: List[Dict[str, Any]] = []
+    key_to_id: Dict[Any, str] = {}
+    for idx, (key, data) in enumerate(nodes.items(), start=1):
+        if key == "START" or key == "END":
+            label = key
+        else:
+            label = "after{" + ",".join(key) + "}"
+        node_id = str(idx)
+        key_to_id[key] = node_id
+        result_nodes.append({
+            "id": node_id, 
+            "label": label,
+            "earliest": data["earliest"],
+            "latest": data["latest"],
+            "members": data["members"]
+        })
+
     result_tasks: List[Dict[str, Any]] = []
     for taskId in topology:
+        raw_tail = task_to_tail[taskId]
+        raw_head = task_to_head[taskId] 
+        tail_id = key_to_id[raw_tail]
+        head_id = key_to_id[raw_head]
+
         result_tasks.append({
             "id": taskId,
             "name": taskId,
@@ -168,22 +212,10 @@ def analyze_schedule_with_nodes(tasks: List[Dict[str, Any]]):
             "lf": lf[taskId],
             "slack": slack[taskId],
             "critical": abs(slack[taskId]) < 1e-6,
-            "dependencies": list(preds[taskId])
+            "dependencies": list(preds[taskId]),
+            "tail_node": tail_id,
+            "head_node": head_id,
         })
-
-    result_nodes: List[Dict[str, Any]] = []
-    for key, data in nodes.items():
-        if key == "START" or key == "END":
-            label = key
-        else:
-            label = "after{" + ",".join(key) + "}"
-        result_nodes.append({
-            "node": label,
-            "earliest": data["earliest"],
-            "latest": data["latest"],
-            "members": data["members"]
-        })
-
     return {
         "project_duration": projectDuration,
         "tasks": result_tasks,

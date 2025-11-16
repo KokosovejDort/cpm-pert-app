@@ -213,8 +213,105 @@ function renderGantt(result) {
         view_mode: "Day",
         bar_height: BAR_HEIGHT,
         padding: ROW_PADDING,
-        olumn_width: 36,
+        column_width: 36,
         fit_width: false,
         popup_on: "none"
     });
+}
+
+function renderCpmAoA(result) {
+    const mount = document.getElementById("cpm-aoa");
+    mount.innerHTML = "";
+    const nodesData = result.nodes
+    const tasks = result.tasks
+
+    console.log("######################################")
+    console.log(mount.offsetWidth, mount.offsetHeight);
+
+    const nodes = nodesData.map(n => ({
+        data: {
+            id: String(n.id),        
+            label: String(n.label),
+            earliest: n.earliest,
+            latest: n.latest
+        }
+    }));
+
+    const edges = tasks.map(t => ({
+        data: {
+            id: String(t.id),
+            source: String(t.tail_node),   
+            target: String(t.head_node),   
+            label: `${t.id} ${t.duration}`, 
+            duration: t.duration,
+            es: t.es,
+            ef: t.ef,
+            ls: t.ls,
+            lf: t.lf,
+            slack: t.slack
+        },
+        classes: t.critical ? "crit" : "noncrit"
+    }));
+
+    const cy = cytoscape({
+        container: mount,
+        elements: { nodes, edges },
+        style: [
+            {
+                selector: "node",
+                style: {
+                    "shape": "ellipse",
+                    "width": 80,
+                    "height": 80,
+                    "background-color": "#ffffff",
+                    "border-width": 2,
+                    "border-color": "#000000",
+                    "label": "data(label)",
+                    "font-size": 14,
+                    "text-valign": "center",
+                    "text-halign": "center",
+                    "color": "#000000"
+                }
+            },
+            {
+                selector: "edge",
+                style: {
+                    "width": 2,
+                    "line-color": "#6b7280",
+                    "target-arrow-color": "#6b7280",
+                    "target-arrow-shape": "triangle",
+                    "curve-style": "bezier",
+                    "label": "data(label)",
+                    "font-size": 12,
+                    "text-margin-y": -8
+                }
+            },
+            {
+                selector: "edge.crit",
+                style: {
+                    "line-color": "#dc2626",
+                    "target-arrow-color": "#dc2626",
+                    "font-weight": "bold"
+                }
+            }
+        ],
+        layout: {
+            name: "dagre",
+            rankDir: "LR", 
+            rankSep: 80,
+            nodeSep: 40
+        },
+        userZoomingEnabled: false
+    });
+    cy.on("tap", "edge", evt => {
+        const d = evt.target.data();
+        alert(
+            `Task ${d.id}\n` +
+            `Duration: ${d.duration}\n` +
+            `ES/EF: ${d.es} / ${d.ef}\n` +
+            `LS/LF: ${d.ls} / ${d.lf}\n` +
+            `Slack: ${d.slack}`
+        );
+    });
+    cy.fit();
 }

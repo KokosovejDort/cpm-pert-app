@@ -6,6 +6,7 @@
     <link href="{{ url_for('static', filename='css/style.css') }}?v=1" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/frappe-gantt/dist/frappe-gantt.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/gantt.css') }}?v=42">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/cpm.css') }}?v=42">
   </head>
   <body>
     <header class="topbar">CPM/PERT Scheduler</header>
@@ -24,6 +25,10 @@
       <h3 style="margin-top: 16px;">Tasks JSON</h3>
       <div id="gantt-panel" class="panel">
         <div id="gantt"></div>
+      </div>
+      <h3 style="margin-top:16px;">CPM Network (AoA)</h3>
+      <div class="panel">
+        <div id="cpm-aoa"></div>
       </div>
       <table border="1" cellpadding="6">
         <thead>
@@ -51,6 +56,9 @@
         <button id="btn-analyze">Analyze (CPM)</button>
       </div>
     </main>
+    <script src="https://unpkg.com/cytoscape@3.30.0/dist/cytoscape.min.js"></script>
+    <script src="https://unpkg.com/dagre@0.8.5/dist/dagre.min.js"></script>
+    <script src="https://unpkg.com/cytoscape-dagre@2.5.0/cytoscape-dagre.js"></script>
     <script src="https://unpkg.com/frappe-gantt/dist/frappe-gantt.umd.js"></script>
     <script src="{{ url_for('static', filename='js/utility.js') }}?v=2"></script>
     <script src="{{ url_for('static', filename='js/app.js') }}?v=1"></script>
