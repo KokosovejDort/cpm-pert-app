@@ -4,3 +4,14 @@
     border: 1px solid #e2e8f0;
     border-radius: 0.75rem;
 }
+
+.aoa-error-box {
+    background: #ffecec;
+    color: #b80000;
+    border: 1px solid #ff8a8a;
+    padding: 12px 16px;
+    border-radius: 6px;
+    font-family: monospace;
+    white-space: pre-wrap;
+    margin: 12px 0;
+}

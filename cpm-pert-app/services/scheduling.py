@@ -1,6 +1,10 @@
 from collections import defaultdict, deque
 from typing import Dict, List, Set, Tuple, Any
 
+class AoANotSupportedError(Exception):
+    """Raised when the AoA network would require dummy activities."""
+    pass
+
 
 def validate_tasks(tasks: List[Dict[str, Any]]):
     """
@@ -155,28 +159,39 @@ def analyze_schedule_with_nodes(tasks: List[Dict[str, Any]]):
     """
     es, ef, ls, lf, slack, projectDuration, preds, succs, topology, dur = cpm_aon(tasks)
     nodes = derive_event_nodes(es, ef, ls, lf, preds, projectDuration)
-
+    aoa_error = None
     task_to_tail: Dict[str, Any] = {}
-    for key, data in nodes.items():
-        for t in data["members"]:
-            task_to_tail[t] = key
-
     task_to_head: Dict[str, Any] = {}
-    for taskId in topology:
-        succ_list = list(succs[taskId])
-        if not succ_list:
-            task_to_head[taskId] = "END"
-            continue
-        succ_set = set(succ_list)
-        found = False
-        for node_key, data in nodes.items():
-            members_set = set(data["members"])
-            if succ_set.issubset(members_set):
-                task_to_head[taskId] = node_key
-                found = True
-                break
-        if not found:
-            raise ValueError(f"No HEAD event found for task {taskId} with successors {succ_list}")
+
+    try:
+        for key, data in nodes.items():
+            for t in data["members"]:
+                task_to_tail[t] = key
+
+        for taskId in topology:
+            succ_list = list(succs[taskId])
+            if not succ_list:
+                task_to_head[taskId] = "END"
+                continue
+            succ_set = set(succ_list)
+            found = False
+            for node_key, data in nodes.items():
+                members_set = set(data["members"])
+                if succ_set.issubset(members_set):
+                    task_to_head[taskId] = node_key
+                    found = True
+                    break
+            if not found:
+                raise AoANotSupportedError(
+                        f"This project requires dummy activities, "
+                        f"which are not supported in the current AoA implementation "
+                        f"(failed at task {taskId} with successors {succ_list})."
+                    )
+    except AoANotSupportedError as e:
+        aoa_error = str(e)
+        task_to_tail = {}
+        task_to_head = {}
+        result_nodes = []
             
     result_nodes: List[Dict[str, Any]] = []
     key_to_id: Dict[Any, str] = {}
@@ -197,10 +212,14 @@ def analyze_schedule_with_nodes(tasks: List[Dict[str, Any]]):
 
     result_tasks: List[Dict[str, Any]] = []
     for taskId in topology:
-        raw_tail = task_to_tail[taskId]
-        raw_head = task_to_head[taskId] 
-        tail_id = key_to_id[raw_tail]
-        head_id = key_to_id[raw_head]
+        tail_id = None
+        head_id = None
+        if taskId in task_to_tail:
+            raw_tail = task_to_tail[taskId]
+            tail_id = key_to_id.get(raw_tail)
+        if taskId in task_to_head:
+            raw_head = task_to_head[taskId]
+            head_id = key_to_id.get(raw_head)
 
         result_tasks.append({
             "id": taskId,
@@ -219,7 +238,8 @@ def analyze_schedule_with_nodes(tasks: List[Dict[str, Any]]):
     return {
         "project_duration": projectDuration,
         "tasks": result_tasks,
-        "nodes": result_nodes
+        "nodes": result_nodes,
+        "aoa_error": aoa_error
     }
 
 

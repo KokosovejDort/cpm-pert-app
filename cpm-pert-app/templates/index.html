@@ -16,24 +16,30 @@
       <button id="btn-health">Check API</button>
       <pre id="out"></pre>
       
-      <h3 style="margin-top:16px;">Results</h3>
+      <h3 id="title-results" class="section-title">Results</h3>
       <div id="cpm-summary" class="panel"></div>
       <div class="panel">
         <div id="cpm-table"></div>
       </div>
 
-      <h3 style="margin-top: 16px;">Tasks JSON</h3>
+      <h3 id="title-gantt" class="section-title">Gantt Chart</h3>
       <div id="gantt-panel" class="panel">
         <div id="gantt"></div>
       </div>
-      <h3 style="margin-top:16px;">CPM Network (AoA)</h3>
-      <div class="panel">
+
+      <h3 id="title-aoa" class="section-title">CPM Network (AoA)</h3>
+      <div id="aoa-error-panel" class="panel">
+        <div id="aoa-error"></div>
+      </div>
+      <div id="aoa-panel" class="panel">
         <div id="cpm-aoa"></div>
       </div>
-      <div class="panel">
+
+      <div class="panel" stye="margin-bottom: 16px;">
         <label for="file-upload">Import tasks from CSV:</label>
         <input type="file" id="file-upload" accept=".csv" />
       </div>
+
       <table border="1" cellpadding="6">
         <thead>
           <tr>

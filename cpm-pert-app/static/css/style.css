@@ -24,6 +24,33 @@ body {
     padding: 12px;
     margin-top: 12px;
 }
+
+table {
+    margin-top: 16px;
+}
+
+#cpm-summary:empty {
+    display: none;
+}
+
+.panel:has(#cpm-table:empty),
+.panel:has(#gantt:empty),
+.panel:has(#cpm-aoa:empty),
+.panel:has(#aoa-error:empty) {
+    display: none;
+}
+
+#cpm-summary:not(:empty),
+.panel:has(#cpm-table:not(:empty)),
+.panel:has(#gantt:not(:empty)),
+.panel:has(#cpm-aoa:not(:empty)),
+.panel:has(#aoa-error:not(empty)) {
+    display: block;
+}
+
+.section-title {
+    display: none;
+}
   
   /* The out */
 #out {
@@ -119,5 +146,3 @@ button {
 button:hover {
     background: #2563eb;
 }
-
-  

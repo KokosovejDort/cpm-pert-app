@@ -96,6 +96,7 @@ document.addEventListener("DOMContentLoaded", () => {
             let json;
             try { json = JSON.parse(text); }
             catch (jsonErr) { throw new JsonParseError(jsonErr.message, text); }
+            console.log(json)
 
             if (!json || typeof json !== "object" || !json.result) {
                 throw new Error("Invalid payload shape: missing 'result'.");
@@ -105,18 +106,35 @@ document.addEventListener("DOMContentLoaded", () => {
             out.textContent = JSON.stringify(json.result, null, 2);
             renderCpmSummary(json.result);
             renderCpmTable(json.result);
+            document.getElementById("title-results").style.display = "block";
 
             try {
                 const mapped = mapCpmToGantt(json.result);
                 renderGantt(mapped);
+                document.getElementById("title-gantt").style.display = "block";
             } catch (mappingErr) {
                 throw new MappingError(mappingErr.message);
             }
 
-            try {
-                renderCpmAoA(json.result)
-            } catch (aoaErr) {
-                throw new AoARenderError(aoaErr.message || String (aoaErr))
+            const aoaContainer = document.getElementById("cpm-aoa");
+            const aoaErrorContainer = document.getElementById("aoa-error");
+            aoaContainer.innerHTML = "";
+            aoaErrorContainer.innerHTML = "";
+            document.getElementById("title-aoa").style.display = "block";
+
+            if (json.result.aoa_error) {
+                aoaErrorContainer.innerHTML = `
+<div class="aoa-error-box">
+    <strong>AoA Network Not Supported</strong><br><br>
+    ${json.result.aoa_error}
+</div>
+                `;
+            } else if (Array.isArray(json.result.nodes) && json.result.nodes.length > 0) {
+                try {
+                    renderCpmAoA(json.result);
+                } catch (aoaErr) {
+                    throw new AoARenderError(aoaErr.message || String(aoaErr));
+                }
             }
         }
         catch (err) {

@@ -322,8 +322,6 @@ function renderCpmAoA(result) {
     const nodesData = result.nodes
     const tasks = result.tasks
 
-    console.log("######################################")
-    console.log(mount.offsetWidth, mount.offsetHeight);
 
     const nodes = nodesData.map(n => ({
         data: {
