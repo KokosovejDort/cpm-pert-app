@@ -1,10 +1,16 @@
+function fmt(x) {
+    return Number(x).toFixed(2).replace(/\.00$/, "");
+}
+
 function handleFileUpload(event) {
-    const file = event.target.files[0];
+    const input = event.target;
+    const file = input.files[0];
     if (!file) {
         return
     }
-    const tbody = document.querySelector("tbody");
+    const tbody = document.querySelector("#input-table tbody");
     if (tbody) {
+        console.log("CLear up tbody.")
         tbody.innerHTML = "";
     }
     const reader = new FileReader();
@@ -61,7 +67,7 @@ function parseCpmCsv(text) {
 }
 
 function applyTasksToTable(tasks) {
-    const tbody = document.querySelector("tbody");
+    const tbody = document.querySelector("#input-table tbody");
     tbody.innerHTML = "";
     tasks.forEach(task => {
         const tr = document.createElement("tr");
@@ -103,7 +109,7 @@ function parseDependencies(dependenciesText) {
 }
 
 function readTable() {
-    const rows = document.querySelectorAll("tbody tr");
+    const rows = document.querySelectorAll("#input-table tbody tr");
 
     const tasks = [];
     for (let i = 0; i < rows.length; i++) {
@@ -172,13 +178,13 @@ function renderCpmTable(result) {
         const cells = [
             `<td class="cpm-mono">${t.id}</td>`,
             `<td class="cpm-mono">${t.name}</td>`,
-            `<td class="cpm-mono">${t.duration}</td>`,
-            `<td class="cpm-mono" title="Early Start">${t.es}</td>`,
-            `<td class="cpm-mono" title="Early Finish">${t.ef}</td>`,
-            `<td class="cpm-mono" title="Late Start">${t.ls}</td>`,
-            `<td class="cpm-mono" title="Late Finish">${t.lf}</td>`,
-            `<td class="cpm-mono" title="Total Slack">${t.slack}</td>`,
-            `<td class="cpm-mono">${deps}</td>`,
+            `<td class="cpm-mono">${fmt(t.duration)}</td>`,
+            `<td class="cpm-mono" title="Early Start">${fmt(t.es)}</td>`,
+            `<td class="cpm-mono" title="Early Finish">${fmt(t.ef)}</td>`,
+            `<td class="cpm-mono" title="Late Start">${fmt(t.ls)}</td>`,
+            `<td class="cpm-mono" title="Late Finish">${fmt(t.lf)}</td>`,
+            `<td class="cpm-mono" title="Total Slack">${fmt(t.slack)}</td>`,
+                    `<td class="cpm-mono">${deps}</td>`,
             `<td>${t.critical ? '<span class="badge badge-critical">Critical</span>' : ""}</td>`
         ];
 
@@ -188,7 +194,7 @@ function renderCpmTable(result) {
 }
 
 function getNextId() {
-    const rows = document.querySelectorAll("tbody tr");
+    const rows = document.querySelectorAll("#input-table tbody tr");
     if (rows.length === 0)
         return "A";
 
@@ -337,13 +343,13 @@ function renderCpmAoA(result) {
             id: String(t.id),
             source: String(t.tail_node),   
             target: String(t.head_node),   
-            label: `${t.id} ${t.duration}`, 
+            label: `${t.id} ${fmt(t.duration)}`,
             duration: t.duration,
-            es: t.es,
-            ef: t.ef,
-            ls: t.ls,
-            lf: t.lf,
-            slack: t.slack
+            es: fmt(t.es),
+            ef: fmt(t.ef),
+            ls: fmt(t.ls),
+            lf: fmt(t.lf),
+            slack: fmt(t.slack)
         },
         classes: t.critical ? "crit" : "noncrit"
     }));
@@ -402,10 +408,10 @@ function renderCpmAoA(result) {
         const d = evt.target.data();
         alert(
             `Task ${d.id}\n` +
-            `Duration: ${d.duration}\n` +
-            `ES/EF: ${d.es} / ${d.ef}\n` +
-            `LS/LF: ${d.ls} / ${d.lf}\n` +
-            `Slack: ${d.slack}`
+            `Duration: ${fmt(d.duration)}\n` +
+            `ES/EF: ${fmt(d.es)} / ${fmt(d.ef)}\n` +
+            `LS/LF: ${fmt(d.ls)} / ${fmt(d.lf)}\n` +
+            `Slack: ${fmt(d.slack)}`
         );
     });
     cy.fit();

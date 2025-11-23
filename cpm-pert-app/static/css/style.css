@@ -5,6 +5,22 @@ body {
     background: #f5f5f5;
 }
 
+#debug-json {
+    display: none;
+    margin-top: 8px;
+    padding: 8px 12px;
+    background: #f9fafb;
+    border-radius: 6px;
+    border: 1px solid #e5e7eb;
+    font-family: monospace;
+    font-size: 12px;
+    white-space: pre-wrap;
+}
+
+#debug-json.visible {
+    display: block;
+}
+
 .topbar {
     background: #1f2937;
     color: #fff;

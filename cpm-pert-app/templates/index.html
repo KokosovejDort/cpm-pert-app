@@ -14,7 +14,12 @@
       <h2>Project Management Tool</h2>
 
       <button id="btn-health">Check API</button>
+      <label style="margin-left: 8px;">
+        <input type="checkbox" id="toggle-json">
+        Show raw JSON (debug)
+      </label>
       <pre id="out"></pre>
+      <pre id="debug-json"></pre>
       
       <h3 id="title-results" class="section-title">Results</h3>
       <div id="cpm-summary" class="panel"></div>
@@ -40,7 +45,7 @@
         <input type="file" id="file-upload" accept=".csv" />
       </div>
 
-      <table border="1" cellpadding="6">
+      <table id="input-table" border="1" cellpadding="6">
         <thead>
           <tr>
             <th>ID</th>

@@ -58,6 +58,7 @@ def _prepare_once(browser):
     shared_page = shared_ctx.new_page()
     
     shared_page.goto(BASE_URL, wait_until="domcontentloaded")
+    enable_json_debug(shared_page)
     fill_rows(shared_page, fill_click_capture_rows)
 
     resp, payload = click_analyze_and_capture(shared_page)
@@ -72,6 +73,11 @@ def _prepare_once(browser):
     shared_ctx.close()
 
 # ========== HELPERS (sync) ==========
+def enable_json_debug(page):
+    toggle = page.locator("#toggle-json")
+    expect(toggle).to_be_visible(timeout=2000)
+    toggle.check()
+
 def get_ui(page, selector="#out", json=False):
     el = page.locator(selector)
     expect(el).to_be_visible()
@@ -133,7 +139,7 @@ def test_json_payload():
     server_json = fill_click_capture_server
     page = shared_page
 
-    ui_data = get_ui(page, "#out", True)
+    ui_data = get_ui(page, "#debug-json", True)
     assert isinstance(ui_data, dict), f"UI did not render JSON object, got: {type(ui_data)}"
 
     by_id = {t["id"]: t for t in payload["tasks"]}
@@ -168,7 +174,7 @@ def test_json_nodes():
     page = shared_page
     expected_nodes = fill_click_capture_nodes
 
-    ui_data = get_ui(page, "#out", True)
+    ui_data = get_ui(page, "#debug-json", True)
     actual_nodes = {n["label"]: n for n in server_json["nodes"]}
     missing = set(expected_nodes) - set(actual_nodes)
     assert not missing, f"Server missing nodes: {missing}"
@@ -258,6 +264,7 @@ def test_table_block_ui():
 
 def test_zero_duration_and_parallel_branches(page):
     page.goto(BASE_URL, wait_until="domcontentloaded")
+    enable_json_debug(page)
     rows = [
         {"id": "A", "name": "A", "duration": "0", "dependencies": ""},
         {"id": "B", "name": "B", "duration": "2", "dependencies": "A"},
@@ -272,12 +279,13 @@ def test_zero_duration_and_parallel_branches(page):
     resp.finished()
     server_json = resp.json().get("result")
     assert server_json["project_duration"] == 6, f"Server project_duration expected 6, got {server_json['project_duration']}"
-    ui_data = get_ui(page, "#out", True)
+    ui_data = get_ui(page, "#debug-json", True)
     assert ui_data["project_duration"] == 6, f"UI project_duration expected 6, got {ui_data['project_duration']}"
 
 
 def test_error_non_numeric_duration(page):
     page.goto(BASE_URL, wait_until="domcontentloaded")
+    enable_json_debug(page)
     rows = [
         {"id": "A", "name": "A", "duration": "x", "dependencies": ""},
     ]
@@ -292,6 +300,7 @@ def test_error_non_numeric_duration(page):
 
 def test_error_negative_duration(page):
     page.goto(BASE_URL, wait_until="domcontentloaded")
+    enable_json_debug(page)
     rows = [
         {"id": "A", "name": "A", "duration": "-1", "dependencies": ""},
     ]
@@ -306,6 +315,7 @@ def test_error_negative_duration(page):
 
 def test_error_self_dependency(page):
     page.goto(BASE_URL, wait_until="domcontentloaded")
+    enable_json_debug(page)
     rows = [
         {"id": "A", "name": "A", "duration": "1", "dependencies": "A"},
     ]
@@ -320,6 +330,7 @@ def test_error_self_dependency(page):
 
 def test_error_unknown_dependency(page):
     page.goto(BASE_URL, wait_until="domcontentloaded")
+    enable_json_debug(page)
     rows = [
         {"id": "A", "name": "A", "duration": "1", "dependencies": "B"},
     ]
@@ -334,6 +345,7 @@ def test_error_unknown_dependency(page):
 
 def test_error_duplicate_ids(page):
     page.goto(BASE_URL, wait_until="domcontentloaded")
+    enable_json_debug(page)
     rows = [
         {"id": "A", "name": "A", "duration": "1", "dependencies": ""},
         {"id": "A", "name": "A dup", "duration": "2", "dependencies": ""},
@@ -349,6 +361,7 @@ def test_error_duplicate_ids(page):
 
 def test_error_cycle_detection(page):
     page.goto(BASE_URL, wait_until="domcontentloaded")
+    enable_json_debug(page)
     rows = [
         {"id": "A", "name": "A", "duration": "1", "dependencies": "B"},
         {"id": "B", "name": "B", "duration": "1", "dependencies": "C"},
@@ -365,6 +378,7 @@ def test_error_cycle_detection(page):
 
 def test_auto_generated_task_ids_when_exceeding_alphabet(page):
     page.goto(BASE_URL, wait_until="domcontentloaded")
+    enable_json_debug(page)
     TOTAL = 300
     add_rows(page, TOTAL)
     add_btn = page.locator("#btn-add")

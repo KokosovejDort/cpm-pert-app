@@ -34,7 +34,17 @@ function show(out, kind, text) {
 
 document.addEventListener("DOMContentLoaded", () => {
     const out = document.getElementById("out");
+    const debugJson = document.getElementById("debug-json");
     const tbody = document.querySelector("tbody");
+
+    const toggleJson = document.getElementById("toggle-json");
+    if (toggleJson && debugJson) {
+        const syncDebugVisibility = () => {
+            debugJson.classList.toggle("visible", toggleJson.checked);
+        };
+        toggleJson.addEventListener("change", syncDebugVisibility);
+        syncDebugVisibility();
+    }
 
     document.getElementById("btn-health").onclick = async () => {
         const res = await fetch("/api/health");
@@ -103,7 +113,10 @@ document.addEventListener("DOMContentLoaded", () => {
             }
 
             out.className = "ok";
-            out.textContent = JSON.stringify(json.result, null, 2);
+            out.textContent = "Analysis completed successfully."; 
+            if (debugJson) {
+                debugJson.textContent = JSON.stringify(json.result, null, 2);
+            }
             renderCpmSummary(json.result);
             renderCpmTable(json.result);
             document.getElementById("title-results").style.display = "block";
