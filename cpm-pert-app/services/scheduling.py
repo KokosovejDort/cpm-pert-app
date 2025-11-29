@@ -152,6 +152,54 @@ def derive_event_nodes(
     nodes["END"] = {"earliest": project_duration, "latest": project_duration, "members": []}
     return nodes
 
+def build_aon_view_from_cpm(
+    es: Dict[str, float],
+    ef: Dict[str, float],
+    ls: Dict[str, float],
+    lf: Dict[str, float],
+    slack: Dict[str, float],
+    preds: Dict[str, Set[str]],
+    succs: Dict[str, Set[str]],
+    topology: List[str],
+    dur: Dict[str, float],
+    project_duration: float,
+):
+    """
+    Build Activity-on-Node (AoN) view using CPM results.
+
+    In AoN:
+      - each *activity* becomes a node
+      - precedence relations become edges (pred -> succ)
+    """
+    aon_nodes: List[Dict[str, Any]] = []
+    aon_edges: List[Dict[str, Any]] = []
+
+    for task_id in topology:
+        aon_nodes.append({
+            "id": task_id,
+            "label": task_id,              
+            "duration": dur[task_id],
+            "es": es[task_id],
+            "ef": ef[task_id],
+            "ls": ls[task_id],
+            "lf": lf[task_id],
+            "slack": slack[task_id],
+            "critical": abs(slack[task_id]) < 1e-6,
+            "dependencies": list(preds[task_id]),
+        })
+    for current_id, succ_set in succs.items():
+        for succ_id in succ_set:
+            aon_edges.append({
+                "id": f"{current_id}->{succ_id}",
+                "source": current_id,
+                "target": succ_id,
+            })
+    return {
+        "project_duration": project_duration,
+        "nodes": aon_nodes,
+        "edges": aon_edges,
+    }
+
 
 def analyze_schedule_with_nodes(tasks: List[Dict[str, Any]]):
     """
@@ -204,7 +252,8 @@ def analyze_schedule_with_nodes(tasks: List[Dict[str, Any]]):
         key_to_id[key] = node_id
         result_nodes.append({
             "id": node_id, 
-            "label": label,
+            "label": node_id,
+            "data_label": label,
             "earliest": data["earliest"],
             "latest": data["latest"],
             "members": data["members"]
@@ -235,11 +284,24 @@ def analyze_schedule_with_nodes(tasks: List[Dict[str, Any]]):
             "tail_node": tail_id,
             "head_node": head_id,
         })
+    aon_view = build_aon_view_from_cpm(
+        es=es,
+        ef=ef,
+        ls=ls,
+        lf=lf,
+        slack=slack,
+        preds=preds,
+        succs=succs,
+        topology=topology,
+        dur=dur,
+        project_duration=projectDuration,
+    )
     return {
         "project_duration": projectDuration,
         "tasks": result_tasks,
         "nodes": result_nodes,
-        "aoa_error": aoa_error
+        "aoa_error": aoa_error,
+        "aon": aon_view
     }
 
 

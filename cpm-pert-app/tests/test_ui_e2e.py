@@ -175,7 +175,7 @@ def test_json_nodes():
     expected_nodes = fill_click_capture_nodes
 
     ui_data = get_ui(page, "#debug-json", True)
-    actual_nodes = {n["label"]: n for n in server_json["nodes"]}
+    actual_nodes = {n["data_label"]: n for n in server_json["nodes"]}
     missing = set(expected_nodes) - set(actual_nodes)
     assert not missing, f"Server missing nodes: {missing}"
     for label, exp in expected_nodes.items():
@@ -184,7 +184,7 @@ def test_json_nodes():
         assert node["latest"] == exp["latest"], f"{label} latest mismatch (server): got {node['latest']}, expected {exp['latest']}"
         assert node["members"] == exp["members"], f"{label} members mismatch (server): got {node['members']}, expected {exp['members']}"
 
-    ui_nodes = {n["label"]: n for n in ui_data["nodes"]}
+    ui_nodes = {n["data_label"]: n for n in ui_data["nodes"]}
     missing_ui = set(expected_nodes) - set(ui_nodes)
     assert not missing_ui, f"UI missing nodes: {missing_ui}"
 

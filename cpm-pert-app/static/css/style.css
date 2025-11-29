@@ -51,7 +51,7 @@ table {
 
 .panel:has(#cpm-table:empty),
 .panel:has(#gantt:empty),
-.panel:has(#cpm-aoa:empty),
+.panel:has(#cpm-network:empty),
 .panel:has(#aoa-error:empty) {
     display: none;
 }
@@ -59,7 +59,7 @@ table {
 #cpm-summary:not(:empty),
 .panel:has(#cpm-table:not(:empty)),
 .panel:has(#gantt:not(:empty)),
-.panel:has(#cpm-aoa:not(:empty)),
+.panel:has(#cpm-network:not(:empty)),
 .panel:has(#aoa-error:not(empty)) {
     display: block;
 }

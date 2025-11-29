@@ -1,3 +1,7 @@
+let cy = null;           
+let aoaElements = [];    
+let aonElements = []; 
+
 function fmt(x) {
     return Number(x).toFixed(2).replace(/\.00$/, "");
 }
@@ -322,27 +326,52 @@ function renderGantt(result) {
     });
 }
 
-function renderCpmAoA(result) {
-    const mount = document.getElementById("cpm-aoa");
-    mount.innerHTML = "";
-    const nodesData = result.nodes
-    const tasks = result.tasks
-
-
-    const nodes = nodesData.map(n => ({
+function buildAoNElementsFromResult(aon) {
+    if (!aon) {
+        throw new Error(`No data for building AoN graph.`);
+    }
+    const nodes = aon.nodes.map(n => ({
         data: {
-            id: String(n.id),        
+          id: n.id,
+          label: n.label,
+          duration: n.duration,
+          es: n.es,
+          ef: n.ef,
+          ls: n.ls,
+          lf: n.lf,
+          slack: n.slack
+        },
+        classes: n.critical ? "crit" : "noncrit"
+    }));
+    const edges = aon.edges.map(e => ({
+        data: {
+          id: e.id,
+          source: e.source,
+          target: e.target
+        }
+    }));
+    return [...nodes, ...edges];
+}
+
+function buildAoAElementsFromResult(aoa) {
+    if (!aoa) {
+        throw new Error(`No data for building AoA graph.`);
+    }
+    const nodes = aoa.nodes.map(n => ({
+        data: {
+            id: String(n.id),
             label: String(n.label),
             earliest: n.earliest,
             latest: n.latest
         }
     }));
-
-    const edges = tasks.map(t => ({
+    const edges = aoa.tasks
+    .filter(t => t.tail_node != null && t.head_node != null) 
+    .map(t => ({
         data: {
             id: String(t.id),
-            source: String(t.tail_node),   
-            target: String(t.head_node),   
+            source: String(t.tail_node),
+            target: String(t.head_node),
             label: `${t.id} ${fmt(t.duration)}`,
             duration: t.duration,
             es: fmt(t.es),
@@ -353,66 +382,106 @@ function renderCpmAoA(result) {
         },
         classes: t.critical ? "crit" : "noncrit"
     }));
+    return [...nodes, ...edges];
+}
 
-    const cy = cytoscape({
-        container: mount,
-        elements: { nodes, edges },
+function ensureCy() {
+    if (cy) return cy;
+    cy = cytoscape({
+        container: document.getElementById("cpm-network"), 
+        elements: [],
+        userZoomingEnabled: false,
+        userPanningEnabled: false,     
+        boxSelectionEnabled: false,
         style: [
-            {
-                selector: "node",
-                style: {
-                    "shape": "ellipse",
-                    "width": 80,
-                    "height": 80,
-                    "background-color": "#ffffff",
-                    "border-width": 2,
-                    "border-color": "#000000",
-                    "label": "data(label)",
-                    "font-size": 14,
-                    "text-valign": "center",
-                    "text-halign": "center",
-                    "color": "#000000"
-                }
-            },
-            {
-                selector: "edge",
-                style: {
-                    "width": 2,
-                    "line-color": "#6b7280",
-                    "target-arrow-color": "#6b7280",
-                    "target-arrow-shape": "triangle",
-                    "curve-style": "bezier",
-                    "label": "data(label)",
-                    "font-size": 12,
-                    "text-margin-y": -8
-                }
-            },
-            {
-                selector: "edge.crit",
-                style: {
-                    "line-color": "#dc2626",
-                    "target-arrow-color": "#dc2626",
-                    "font-weight": "bold"
-                }
+          {
+            selector: "node",
+            style: {
+                "shape": "ellipse",
+                "width": 80,
+                "height": 80,
+                "background-color": "#ffffff",
+                "border-width": 2,
+                "border-color": "#000000",
+                "label": "data(label)",
+                "font-size": 14,
+                "text-valign": "center",
+                "text-halign": "center",
+                "color": "#000000"
             }
-        ],
-        layout: {
-            name: "dagre",
-            rankDir: "LR", 
-            rankSep: 80,
-            nodeSep: 40
-        },
-        userZoomingEnabled: false
+          },
+          {
+            selector: "edge",
+            style: {
+                "width": 2,
+                "line-color": "#6b7280",
+                "target-arrow-color": "#6b7280",
+                "target-arrow-shape": "triangle",
+                "curve-style": "bezier",
+                "label": "data(label)",   
+                "font-size": 12,
+                "text-margin-y": -8
+            }
+          },
+          {
+            selector: "edge.crit",
+            style: {
+              "line-color": "#dc2626",
+              "target-arrow-color": "#dc2626",
+              "font-weight": "bold"
+            }
+          },
+          {
+            selector: "node.crit",
+            style: {
+                "background-color": "#dc2626",
+                "color": "#ffffff"
+            }
+          },
+          {
+            selector: "node.noncrit",
+            style: {
+                "background-color": "#2563eb",
+                "color": "#ffffff"
+            }
+          }
+        ]
+      });
+    
+    return cy;
+}
+
+function renderNetwork(mode) {
+    const cy = ensureCy();
+    let elements;
+    if (mode === "aon") {
+        elements = aonElements || [];
+    } else {
+        elements = aoaElements || [];
+    }
+    cy.elements().remove();
+    cy.add(elements);
+    const layout = cy.layout({
+        name: "dagre",
+        rankDir: "LR", 
+        rankSep: 80,
+        nodeSep: 40
     });
-    cy.on("tap", "edge", evt => {
-        const d = evt.target.data();
-        alert(
-            `Task ${d.id}\n` +
-            `Duration: ${fmt(d.duration)}\n` +
-            `ES/EF: ${fmt(d.es)} / ${fmt(d.ef)}\n` +
-            `LS/LF: ${fmt(d.ls)} / ${fmt(d.lf)}\n` +
-            `Slack: ${fmt(d.slack)}`
-        );
-    });
+    layout.run();
     cy.fit();
 }
+
+function initOrUpdateNetwork() {
+    const modeSelect = document.getElementById("network-mode");
+    const mode = modeSelect ? modeSelect.value : "aoa";
+
+    renderNetwork(mode);
+
+    if (modeSelect && !modeSelect._handlerAttached) {
+        modeSelect.addEventListener("change", e => {
+            renderNetwork(e.target.value);
+        });
+        modeSelect._handlerAttached = true;
+    }
+}
+

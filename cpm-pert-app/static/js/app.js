@@ -129,9 +129,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 throw new MappingError(mappingErr.message);
             }
 
-            const aoaContainer = document.getElementById("cpm-aoa");
             const aoaErrorContainer = document.getElementById("aoa-error");
-            aoaContainer.innerHTML = "";
             aoaErrorContainer.innerHTML = "";
             document.getElementById("title-aoa").style.display = "block";
 
@@ -142,13 +140,17 @@ document.addEventListener("DOMContentLoaded", () => {
     ${json.result.aoa_error}
 </div>
                 `;
-            } else if (Array.isArray(json.result.nodes) && json.result.nodes.length > 0) {
-                try {
-                    renderCpmAoA(json.result);
-                } catch (aoaErr) {
-                    throw new AoARenderError(aoaErr.message || String(aoaErr));
-                }
+            } 
+            if (!json.result.aoa_error &&
+                Array.isArray(json.result.nodes) &&
+                json.result.nodes.length > 0) {
+            
+                aoaElements = buildAoAElementsFromResult(json.result);
+            } else {
+                aoaElements = [];   // no AoA graph to show
             }
+            aonElements = buildAoNElementsFromResult(json.result.aon);
+            initOrUpdateNetwork();
         }
         catch (err) {
             document.getElementById("cpm-summary").innerHTML = "";
