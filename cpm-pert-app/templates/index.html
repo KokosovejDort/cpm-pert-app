@@ -10,6 +10,7 @@
     <link href="{{ url_for('static', filename='css/style.css') }}?v=1" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/frappe-gantt/dist/frappe-gantt.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/gantt.css') }}?v=42">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/network.css') }}?v=42">
   </head>
   <body class="bg-light">
 
@@ -31,9 +32,9 @@
 
       <div class="mb-3">
         <div class="form-check mb-1">
-          <input class="form-check-input" type="checkbox" id="toggle-json">
-          <label class="form-check-label" for="toggle-json">
-            Show raw JSON result
+          <input class="form-check-input" type="checkbox" id="toggle-csv">
+          <label class="form-check-label" for="toggle-csv">
+            Show raw CSV result
           </label>
         </div>
         <pre id="debug-json" class="small"></pre>
@@ -55,7 +56,7 @@
                   Run CPM / PERT
                 </button>
                 <label class="btn btn-outline-secondary btn-sm mb-0">
-                  Import JSON <input id="file-upload" type="file" hidden>
+                  Import CSV <input id="file-upload" type="file" hidden>
                 </label>
               </div>
 
@@ -91,11 +92,11 @@
 
         <div class="col-lg-8 col-xl-9">
 
-          <div class="card shadow-sm mb-3">
+          <div class="card shadow-sm mb-3" id="cpm-summary-card">
             <div class="card-header">
               Results
             </div>
-            <div class="card-body" id="cpm-summary">
+            <div class="card-body d-none" id="cpm-summary">
             </div>
           </div>
 
@@ -146,8 +147,6 @@
                 </div>
               </div>
               <div id="cpm-network" style="min-height: 360px;"></div>
-              <div id="aoa-container" style="min-height: 360px;"></div>
-              <div id="aon-container" style="min-height: 360px;" class="d-none"></div>
             </div>
 
             <div class="tab-pane fade" id="tab-table" role="tabpanel"

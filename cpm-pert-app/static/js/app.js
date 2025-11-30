@@ -37,7 +37,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const debugJson = document.getElementById("debug-json");
     const tbody = document.querySelector("#input-table tbody");
 
-    const toggleJson = document.getElementById("toggle-json");
+    const toggleJson = document.getElementById("toggle-csv");
     if (toggleJson && debugJson) {
         const syncDebugVisibility = () => {
             debugJson.classList.toggle("visible", toggleJson.checked);

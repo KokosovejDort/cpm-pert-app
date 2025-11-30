@@ -80,7 +80,7 @@ function applyTasksToTable(tasks) {
             <td contenteditable="true"></td>
             <td contenteditable="true"></td>
             <td contenteditable="true"></td>
-            <td><button class="btn-del">Delete</button></td>
+            <td><button class="btn-del btn btn-sm btn-outline-danger">Delete</button></td>
         `;
         const cells = tr.querySelectorAll("td");
         cells[0].textContent = task.id;  
@@ -96,13 +96,18 @@ function parseCsvPredecessors(prCell) {
     if (!trimmed || trimmed === "-") {
         return [];
     }
-    if (/[,\s;]/.test(trimmed)) {
+    if (/[,\s;]+/.test(trimmed)) {
         return trimmed
             .split(/[,\s;]+/)
             .map(x => x.trim())
             .filter(Boolean);
     }
-    return trimmed.split("").filter(Boolean);
+
+    if (/^[A-Za-z]+$/.test(trimmed)) {
+        return trimmed.split("");   
+    }
+
+    return [trimmed];
 }
 
 function parseDependencies(dependenciesText) {
@@ -140,6 +145,7 @@ function readTable() {
 
 function renderCpmSummary(result) {
     const box = document.getElementById("cpm-summary");
+
     const dur = result.project_duration;
     const criticalIds = (result.tasks || [])
       .filter(t => t.critical)
@@ -150,6 +156,11 @@ function renderCpmSummary(result) {
       <div><strong>Critical path:</strong> <span class="cpm-mono">${criticalIds.join(" → ") || "-"}</span></div>
       <div><strong># Tasks:</strong> <span class="cpm-mono">${result.tasks?.length || 0}</span></div>
     `;
+
+    if (box) {
+        const empty = box.innerHTML.trim() === "";
+        box.classList.toggle("d-none", empty);
+    }
   }
   
 function renderCpmTable(result) {
