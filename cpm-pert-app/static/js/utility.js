@@ -472,16 +472,17 @@ function renderNetwork(mode) {
 }
 
 function initOrUpdateNetwork() {
-    const modeSelect = document.getElementById("network-mode");
-    const mode = modeSelect ? modeSelect.value : "aoa";
+    const toggle = document.getElementById("toggle-network-mode");
+    const mode = toggle && toggle.checked ? "aon" : "aoa";
 
     renderNetwork(mode);
 
-    if (modeSelect && !modeSelect._handlerAttached) {
-        modeSelect.addEventListener("change", e => {
-            renderNetwork(e.target.value);
+    if (toggle && !toggle._handlerAttached) {
+        toggle.addEventListener("change", () => {
+            const newMode = toggle.checked ? "aon" : "aoa";
+            renderNetwork(newMode);
         });
-        modeSelect._handlerAttached = true;
+        toggle._handlerAttached = true;
     }
 }
 

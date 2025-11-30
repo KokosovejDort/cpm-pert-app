@@ -35,7 +35,7 @@ function show(out, kind, text) {
 document.addEventListener("DOMContentLoaded", () => {
     const out = document.getElementById("out");
     const debugJson = document.getElementById("debug-json");
-    const tbody = document.querySelector("tbody");
+    const tbody = document.querySelector("#input-table tbody");
 
     const toggleJson = document.getElementById("toggle-json");
     if (toggleJson && debugJson) {
@@ -59,28 +59,23 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.getElementById("btn-add").onclick = () => {
         try {
+            if (!tbody) {
+                console.error("tbody is null, cannot append row");
+                return;
+            }
+    
             const tr = document.createElement("tr");
-            tr.innerHTML = `<td contenteditable="true">${getNextId()}</td><td contenteditable="true"></td><td contenteditable="true">0</td><td contenteditable="true"></td><td><button class="btn-del">Delete</button></td>`;            tbody.appendChild(tr);
+            tr.innerHTML = `
+                <td contenteditable="true">${getNextId()}</td>
+                <td contenteditable="true"></td>
+                <td contenteditable="true">0</td>
+                <td contenteditable="true"></td>
+                <td><button class="btn-del btn btn-sm btn-outline-danger">Delete</button></td>
+            `;
+            tbody.appendChild(tr);
         }
         catch (error) {
             console.log(error.message);
-        }
-    };
-    
-    document.getElementById("btn-save").onclick = async () => {
-        try {
-            const tasksParsed = readTable();
-            const requestBody = JSON.stringify({ tasks: tasksParsed });
-
-            const res = await fetch("/api/tasks", {
-                method: "POST",
-                headers: {"Content-Type": "application/json"},
-                body: requestBody
-            });
-            out.textContent = JSON.stringify(await res.json(), null, 2);
-        }
-        catch (error) {
-            out.textContent = error.message;
         }
     };
 
@@ -119,19 +114,16 @@ document.addEventListener("DOMContentLoaded", () => {
             }
             renderCpmSummary(json.result);
             renderCpmTable(json.result);
-            document.getElementById("title-results").style.display = "block";
 
             try {
                 const mapped = mapCpmToGantt(json.result);
                 renderGantt(mapped);
-                document.getElementById("title-gantt").style.display = "block";
             } catch (mappingErr) {
                 throw new MappingError(mappingErr.message);
             }
 
             const aoaErrorContainer = document.getElementById("aoa-error");
             aoaErrorContainer.innerHTML = "";
-            document.getElementById("title-aoa").style.display = "block";
 
             if (json.result.aoa_error) {
                 aoaErrorContainer.innerHTML = `

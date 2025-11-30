@@ -222,6 +222,7 @@ def test_table_block_ui():
     server_json_sorted = sorted(fill_click_capture_server["tasks"], key=lambda t: str(t["id"]))
     page = shared_page
 
+    page.locator("#table-tab").click()
     mount = page.locator("#cpm-table")
     expect(mount).to_be_visible()
 
