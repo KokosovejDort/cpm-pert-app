@@ -32,7 +32,21 @@ function show(out, kind, text) {
     out.textContent = text;
 }
 
+function updateVisibility(elementId) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    
+    if (!el.textContent.trim()) {
+        el.classList.add("d-none");
+    } else {
+        el.classList.remove("d-none");
+    }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
+    // updateVisibility("out");
+    // updateVisibility("debug-json");
+
     const out = document.getElementById("out");
     const debugJson = document.getElementById("debug-json");
     const tbody = document.querySelector("#input-table tbody");
@@ -85,7 +99,11 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     document.getElementById("btn-analyze").onclick = async () => {
+        const btn = document.getElementById("btn-analyze");
         try {
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Analyzing...';
+            btn.disabled = true;
+        
             const tasksFromTable = readTable();
             const requestBody = JSON.stringify({ tasks: tasksFromTable });
             const response = await fetch("/api/analyze", {
@@ -172,6 +190,10 @@ document.addEventListener("DOMContentLoaded", () => {
             else {
                 show(out, "error", `Network or script error:\n${err.message || err}`);
             }
+        }
+        finally {
+            btn.innerHTML = '<i class="bi bi-lightning-fill"></i> Analyze';
+            btn.disabled = false;
         }
     }
 });
