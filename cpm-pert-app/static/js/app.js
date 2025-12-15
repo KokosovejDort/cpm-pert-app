@@ -32,21 +32,7 @@ function show(out, kind, text) {
     out.textContent = text;
 }
 
-function updateVisibility(elementId) {
-    const el = document.getElementById(elementId);
-    if (!el) return;
-    
-    if (!el.textContent.trim()) {
-        el.classList.add("d-none");
-    } else {
-        el.classList.remove("d-none");
-    }
-}
-
 document.addEventListener("DOMContentLoaded", () => {
-    // updateVisibility("out");
-    // updateVisibility("debug-json");
-
     const out = document.getElementById("out");
     const debugJson = document.getElementById("debug-json");
     const tbody = document.querySelector("#input-table tbody");
