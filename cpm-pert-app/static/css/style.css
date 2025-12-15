@@ -1,82 +1,67 @@
-/* ------------------ Debug JSON ------------------ */
+/* ------------------ Debug JSON & Output ------------------ */
+#debug-json:empty,
+#out:empty {
+    display: none;
+}
 
 #debug-json {
-    display: none;
-    margin-top: 8px;
-    padding: 8px 12px;
-    background: #f9fafb;
-    border-radius: 6px;
-    border: 1px solid #e5e7eb;
-    font-family: monospace;
-    font-size: 12px;
+    display: none; 
     white-space: pre-wrap;
+    overflow-x: auto;
 }
 
 #debug-json.visible {
-    display: block;
+    display: block; 
 }
-
-/* ------------------ (#out) ------------------ */
 
 #out {
     white-space: pre-wrap;
     font-family: "Fira Code", ui-monospace, Menlo, Consolas, monospace;
-    border-radius: 6px;
     overflow-x: auto;
-    margin-top: 10px;
-    padding: 8px;
-    border: 1px solid transparent;
 }
 
+/* Status Colors (JS uses these classes) */
 #out.ok {
     background: #f4fff4;
     color: #064b00;
-    border-color: #90c590;
+    border: 1px solid #90c590;
 }
 
 #out.error {
     background: #fff4f4;
     color: #6b0000;
-    border-color: #e79b9b;
+    border: 1px solid #e79b9b;
 }
 
 #out.warn {
     background: #fffbea;
     color: #6b5900;
-    border-color: #e6d884;
+    border: 1px solid #e6d884;
 }
 
-/* ------------------ CPM summary ------------------ */
-
-#cpm-summary {
-    background: #f9fafb;
-}
-
-/* ------------------ CPM results table ------------------ */
+/* ------------------ CPM Results Table ------------------ */
 
 .cpm-table {
     width: 100%;
     border-collapse: collapse;
     background: #fff;
-    border: 1px solid #e5e7eb;
-    border-radius: 6px;
-    overflow: hidden;
+    border: 1px solid #dee2e6;
     margin-top: 8px;
-    font-family: inherit;
+    font-size: 0.9rem;
 }
 
 .cpm-table th,
 .cpm-table td {
-    padding: 8px 10px;
-    border-bottom: 1px solid #f3f4f6;
+    padding: 8px 12px;
+    border-bottom: 1px solid #dee2e6;
     text-align: center;
     vertical-align: middle;
 }
 
 .cpm-table th {
-    background: #f3f4f6;
+    background: #f8f9fa;
     font-weight: 600;
-    color: #111827;
+    color: #212529;
 }
 
 .cpm-table tr:last-child td {
@@ -88,23 +73,13 @@
 }
 
 .cpm-row-critical {
-    background: #fff1f2;
+    background-color: #fff1f2 !important; 
 }
 
 /* ------------------ Badges ------------------ */
 
-.badge {
-    display: inline-block;
-    padding: 2px 6px;
-    border-radius: 999px;
-    font-size: 12px;
-    line-height: 1.2;
-    border: 1px solid #e5e7eb;
-    background: #f9fafb;
-}
-
 .badge-critical {
-    background: #fee2e2;
-    border-color: #fecaca;
-    color: #7f1d1d;
+    background-color: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fca5a5;
 }
