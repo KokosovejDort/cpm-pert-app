@@ -17,10 +17,14 @@
 
 #gantt-panel { overflow: visible !important; }
 #gantt {
-    position: relative;
-    overflow: visible;    
-    padding-bottom: 96px;  
-    min-height: 360px;
+  overflow-x: auto;       
+  overflow-y: hidden;     
+  width: 100%;            
+  max-width: 100%;        
+  display: block;
+}
+#gantt svg {
+  max-width: none;     
 }
 #gantt svg.gantt { overflow: visible; }
 

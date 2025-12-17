@@ -5,9 +5,15 @@
 }
 
 #debug-json {
-    display: none; 
+    display: none;
+    font-family: monospace;
+    font-size: 0.85rem;
+    background: #f8f9fa;
+    padding: 10px;
+    border-radius: 6px;
+    border: 1px solid #dee2e6;
     white-space: pre-wrap;
-    overflow-x: auto;
+    color: #6c757d;
 }
 
 #debug-json.visible {
@@ -15,28 +21,39 @@
 }
 
 #out {
-    white-space: pre-wrap;
-    font-family: "Fira Code", ui-monospace, Menlo, Consolas, monospace;
-    overflow-x: auto;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-size: 0.95rem;
+    font-weight: 500;
+    
+    padding: 12px 16px;
+    border-radius: 8px;
+    margin-top: 0; 
+    margin-bottom: 1rem;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    
+    display: flex;
+    align-items: center;
 }
 
-/* Status Colors (JS uses these classes) */
 #out.ok {
-    background: #f4fff4;
-    color: #064b00;
-    border: 1px solid #90c590;
+    background: #ecfdf5; 
+    color: #047857;      
+    border: 1px solid #d1fae5;
+    border-left: 4px solid #10b981;
 }
 
 #out.error {
-    background: #fff4f4;
-    color: #6b0000;
-    border: 1px solid #e79b9b;
+    background: #fef2f2;
+    color: #b91c1c;
+    border: 1px solid #fee2e2;
+    border-left: 4px solid #ef4444;
 }
 
 #out.warn {
-    background: #fffbea;
-    color: #6b5900;
-    border: 1px solid #e6d884;
+    background: #fffbeb;
+    color: #b45309;
+    border: 1px solid #fef3c7;
+    border-left: 4px solid #f59e0b;
 }
 
 /* ------------------ CPM Results Table ------------------ */

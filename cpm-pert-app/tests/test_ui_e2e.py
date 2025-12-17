@@ -74,7 +74,7 @@ def _prepare_once(browser):
 
 # ========== HELPERS (sync) ==========
 def enable_json_debug(page):
-    toggle = page.locator("#toggle-csv")
+    toggle = page.locator("#toggle-json")
     expect(toggle).to_be_visible(timeout=2000)
     toggle.check()
 

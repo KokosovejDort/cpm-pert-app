@@ -37,7 +37,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const debugJson = document.getElementById("debug-json");
     const tbody = document.querySelector("#input-table tbody");
 
-    const toggleJson = document.getElementById("toggle-csv");
+    const toggleJson = document.getElementById("toggle-json");
     if (toggleJson && debugJson) {
         const syncDebugVisibility = () => {
             debugJson.classList.toggle("visible", toggleJson.checked);
@@ -146,7 +146,23 @@ document.addEventListener("DOMContentLoaded", () => {
                 aoaElements = [];   // no AoA graph to show
             }
             aonElements = buildAoNElementsFromResult(json.result.aon);
-            initOrUpdateNetwork();
+
+            const networkTabBtn = document.getElementById("network-tab");
+            const ganttTabBtn = document.getElementById("gantt-tab");
+            if (networkTabBtn && ganttTabBtn) {
+                networkTabBtn.click();
+                setTimeout(() => {
+                    initOrUpdateNetwork();
+                    ganttTabBtn.click();
+                    setTimeout(() => {
+                        scrollToFirstGanttTask();
+                    }, 50);
+    
+                }, 10);
+            }
+            setTimeout(() => {
+                initOrUpdateNetwork();
+            }, 10);
         }
         catch (err) {
             document.getElementById("cpm-summary").innerHTML = "";

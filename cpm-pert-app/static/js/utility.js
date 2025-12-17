@@ -282,10 +282,9 @@ function mapCpmToGantt(result) {
 }
 
 function renderGantt(result) {
-    console.log('renderGantt v9 items:', result.items);
-    const BAR_HEIGHT = 28;
-    const ROW_PADDING = 22;
-    const HEADER_HEIGHT = 56;
+    const BAR_HEIGHT = 20;     
+    const ROW_PADDING = 10;    
+    const HEADER_HEIGHT = 50;
 
     const items = result.items.map(t => {
         const startISO = toISODate(addDays(result.projectStart, t.es));
@@ -333,8 +332,33 @@ function renderGantt(result) {
         padding: ROW_PADDING,
         column_width: 36,
         fit_width: false,
-        popup_on: "none"
+        popup_on: "click"
     });
+}
+
+function scrollToFirstGanttTask() {
+    const container = document.querySelector(".gantt-container");
+    if (!container) return;
+
+    const firstBar = container.querySelector(".bar-group");
+
+    if (firstBar) {
+        const rect = firstBar.getBoundingClientRect();
+        const containerRect = container.getBoundingClientRect();
+        const scrollAmount = rect.left - containerRect.left + container.scrollLeft - 50;
+
+        container.scrollTo({
+            left: scrollAmount,
+            behavior: "smooth"
+        });
+    } else {
+        const todayLine = container.querySelector(".today-highlight");
+        if (todayLine) {
+             const rect = todayLine.getBoundingClientRect();
+             const containerRect = container.getBoundingClientRect();
+             container.scrollLeft = rect.left - containerRect.left + container.scrollLeft - 100;
+        }
+    }
 }
 
 function buildAoNElementsFromResult(aon) {
@@ -400,22 +424,20 @@ function ensureCy() {
     if (cy) return cy;
     cy = cytoscape({
         container: document.getElementById("cpm-network"), 
-        elements: [],
-        userZoomingEnabled: false,
-        userPanningEnabled: false,     
+        elements: [],  
         boxSelectionEnabled: false,
         style: [
           {
             selector: "node",
             style: {
                 "shape": "ellipse",
-                "width": 80,
-                "height": 80,
+                "width": 50,
+                "height": 50,
                 "background-color": "#ffffff",
                 "border-width": 2,
                 "border-color": "#000000",
                 "label": "data(label)",
-                "font-size": 14,
+                "font-size": 11,
                 "text-valign": "center",
                 "text-halign": "center",
                 "color": "#000000"
@@ -476,7 +498,7 @@ function renderNetwork(mode) {
         name: "dagre",
         rankDir: "LR", 
         rankSep: 80,
-        nodeSep: 40
+        nodeSep: 20
     });
     layout.run();
     cy.fit();
