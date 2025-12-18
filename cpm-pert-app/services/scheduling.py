@@ -5,63 +5,68 @@ class AoANotSupportedError(Exception):
     """Raised when the AoA network would require dummy activities."""
     pass
 
+class ScheduleValidationError(Exception):
+    def __init__(self, errors: List[Dict[str, Any]]):
+        self.errors = errors
+        super().__init__("Validation failed")
+
 
 def validate_tasks(tasks: List[Dict[str, Any]]):
     """
-    Validate task list:
-      - Each task must have a unique string 'id'
-      - 'duration' must be a number >= 0
-      - 'dependencies' must be a list of existing ids (no self-dependency)
-    Raises ValueError with a clear message if invalid.
+    Validates tasks and raises ScheduleValidationError with a list of specific errors
+    if any issues are found.
     """
-    
+
     if not isinstance(tasks, list):
         raise ValueError("Wrong type of objects sent")
         
     if not tasks:
         raise ValueError("Input must be a non-empty list of task objects")
 
-    ids: List[str] = []
+    validation_errors = []
+    valid_ids = set()
+    seen_ids = set()
+
     for i, task in enumerate(tasks, start=1):
-        if "id" not in task:
-            raise ValueError(f"Task #{i} has no 'id'")
-        if not isinstance(task["id"], str) or not task["id"]:
-            raise ValueError(f"Task #{i} has invalid 'id' (must be non-empty string).")
-        ids.append(task["id"])
+        tid = task.get("id")
+        if not tid or not isinstance(tid, str):
+            validation_errors.append({"id": None, "msg": f"Row {i} missing ID"})
+            continue
+            
+        if tid in seen_ids:
+            validation_errors.append({"id": tid, "msg": f"Duplicate ID: {tid}"})
+        else:
+            seen_ids.add(tid)
+            valid_ids.add(tid)
 
         if "duration" not in task:
-            raise ValueError(f"Task {task['id']}: missing 'duration'.")
+             validation_errors.append({"id": tid, "msg": "Missing duration"})
+        else:
+            try:
+                d = float(task["duration"])
+                if d < 0:
+                    validation_errors.append({"id": tid, "msg": "Duration cannot be negative"})
+            except:
+                validation_errors.append({"id": tid, "msg": "Duration must be a number"})
 
-        try:
-            duration = float(task["duration"])
-        except Exception:
-            raise ValueError(f"Task {task['id']}: 'duration' must be a number.")
-        if duration < 0:
-            raise ValueError(f"Task {task['id']}: 'duration' must be >= 0.")
-
-        dependencies = task.get("dependencies")
-        if dependencies is None:
-            dependencies = []
-            task["dependencies"] = []
-        if not isinstance(dependencies, list):
-            raise ValueError(f"Task {task['id']}: 'dependencies' must be a list.")
-        if task["id"] in dependencies:
-            raise ValueError(f"Task {task['id']}: cannot depend on itself.")
+        deps = task.get("dependencies")
+        if deps is not None and not isinstance(deps, list):
+             validation_errors.append({"id": tid, "msg": "Dependencies must be a list"})
         
-    id_set = set(ids)
-    if len(id_set) != len(ids):
-        seen, dups = set(), set()
-        for x in ids:
-            if x in seen:
-                dups.add(x)
-            seen.add(x)
-        dup_list = ", ".join(sorted(dups))
-        raise ValueError(f"Duplicate task ids found: {dup_list}")
-    
     for task in tasks:
-        for dep in task.get("dependencies", []):
-            if dep not in id_set:
-                raise ValueError(f"Task {task['id']}: dependency '{dep}' does not exist.")
+        tid = task.get("id")
+        if not tid or tid not in valid_ids: 
+            continue 
+
+        deps = task.get("dependencies", [])
+        if isinstance(deps, list):
+            for dep in deps:
+                if dep == tid:
+                    validation_errors.append({"id": tid, "msg": "Self-dependency"})
+                elif dep not in valid_ids:
+                    validation_errors.append({"id": tid, "msg": f"Missing dependency: {dep}"})
+    if validation_errors:
+        raise ScheduleValidationError(validation_errors)
 
 
 def cpm_aon(tasks: List[Dict[str, Any]]):

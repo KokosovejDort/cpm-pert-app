@@ -22,6 +22,8 @@
   width: 100%;            
   max-width: 100%;        
   display: block;
+
+  overflow-anchor: none;
 }
 #gantt svg {
   max-width: none;     
