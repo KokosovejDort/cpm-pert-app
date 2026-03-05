@@ -92,6 +92,18 @@ def cpm_aon(tasks: List[Dict[str, Any]]):
     ])
     topologicalOder: List[str] = []
 
+    # It loops — each iteration it takes a task off the queue, adds it to the order, and "unlocks" its successors by decrementing their count:
+    # Iteration 1:
+    # pop "A" → topologicalOrder = ["A"]
+    # A's successor is B → dependenciesCount["B"] becomes 0 → add B to queue
+
+    # Iteration 2:
+    # pop "B" → topologicalOrder = ["A", "B"]
+    # B's successor is C → dependenciesCount["C"] becomes 0 → add C to queue
+
+    # Iteration 3:
+    # pop "C" → topologicalOrder = ["A", "B", "C"]
+    # C has no successors → nothing added
     while queue:
         currentTaskId = queue.popleft()
         topologicalOder.append(currentTaskId)
@@ -207,106 +219,186 @@ def build_aon_view_from_cpm(
 
 
 def analyze_schedule_with_nodes(tasks: List[Dict[str, Any]]):
-    """
-    Combined CPM + AOA node derivation.
-    """
     es, ef, ls, lf, slack, projectDuration, preds, succs, topology, dur = cpm_aon(tasks)
-    nodes = derive_event_nodes(es, ef, ls, lf, preds, projectDuration)
-    aoa_error = None
-    task_to_tail: Dict[str, Any] = {}
-    task_to_head: Dict[str, Any] = {}
+    
+    pred_sets = set()
+    for t in tasks:
+        pred_sets.add(frozenset(preds[t["id"]]))
+        
+    node_id_map = {}
+    node_label_map = {}
+    node_counter = 1
+    
+    def get_node_id_and_label(key):
+        nonlocal node_counter
+        if key not in node_id_map:
+            if key == "START" or key == "END":
+                node_id_map[key] = key
+                node_label_map[key] = key
+            elif isinstance(key, frozenset):
+                node_id_map[key] = str(node_counter)
+                node_label_map[key] = "after{" + ",".join(sorted(list(key))) + "}"
+                node_counter += 1
+            else: 
+                node_id_map[key] = str(node_counter)
+                node_label_map[key] = key
+                node_counter += 1
+        return node_id_map[key]
 
-    try:
-        for key, data in nodes.items():
-            for t in data["members"]:
-                task_to_tail[t] = key
-
-        for taskId in topology:
-            succ_list = list(succs[taskId])
-            if not succ_list:
-                task_to_head[taskId] = "END"
-                continue
-            succ_set = set(succ_list)
-            found = False
-            for node_key, data in nodes.items():
-                members_set = set(data["members"])
-                if succ_set.issubset(members_set):
-                    task_to_head[taskId] = node_key
-                    found = True
-                    break
-            if not found:
-                raise AoANotSupportedError(
-                        f"This project requires dummy activities, "
-                        f"which are not supported in the current AoA implementation "
-                        f"(failed at task {taskId} with successors {succ_list})."
-                    )
-    except AoANotSupportedError as e:
-        aoa_error = str(e)
-        task_to_tail = {}
-        task_to_head = {}
-        result_nodes = []
-            
-    result_nodes: List[Dict[str, Any]] = []
-    key_to_id: Dict[Any, str] = {}
-    for idx, (key, data) in enumerate(nodes.items(), start=1):
-        if key == "START" or key == "END":
-            label = key
+    get_node_id_and_label("START")
+    get_node_id_and_label("END")
+    
+    task_tails = {}
+    for t in topology:
+        p_set = frozenset(preds[t])
+        if not p_set:
+            task_tails[t] = "START"
         else:
-            label = "after{" + ",".join(key) + "}"
-        node_id = str(idx)
-        key_to_id[key] = node_id
+            task_tails[t] = get_node_id_and_label(p_set)
+            
+    task_heads = {}
+    for t in topology:
+        targets = [s for s in pred_sets if t in s]
+        if not targets:
+            task_heads[t] = "END"
+        elif len(targets) == 1:
+            task_heads[t] = get_node_id_and_label(targets[0])
+        else:
+            target_frozenset = frozenset([t])
+            if target_frozenset in pred_sets:
+                task_heads[t] = get_node_id_and_label(target_frozenset)
+            else:
+                task_heads[t] = get_node_id_and_label(f"Completion_{t}")
+                
+    seen_edges = set()
+    dummies = []
+    dummy_counter = 1
+    
+    for t in topology:
+        tail = task_tails[t]
+        head = task_heads[t]
+        
+        if (tail, head) in seen_edges:
+            new_head = get_node_id_and_label(f"Parallel_{t}")
+            task_heads[t] = new_head
+            dummies.append({
+                "id": f"X{dummy_counter}",
+                "name": f"X{dummy_counter}",
+                "duration": 0.0,
+                "tail_node": new_head,
+                "head_node": head,
+                "dependencies": [t],
+                "is_dummy": True
+            })
+            dummy_counter += 1
+            seen_edges.add((tail, new_head))
+            seen_edges.add((new_head, head))
+        else:
+            seen_edges.add((tail, head))
+
+    for s in pred_sets:
+        if not s: continue 
+        s_node = get_node_id_and_label(s)
+        for x in s:
+            x_head = task_heads[x]
+            if x_head != s_node:
+                if (x_head, s_node) not in seen_edges:
+                    dummies.append({
+                        "id": f"X{dummy_counter}",
+                        "name": f"X{dummy_counter}",
+                        "duration": 0.0,
+                        "tail_node": x_head,
+                        "head_node": s_node,
+                        "dependencies": [x],
+                        "is_dummy": True
+                    })
+                    dummy_counter += 1
+                    seen_edges.add((x_head, s_node))
+
+    all_activities = []
+    for t in topology:
+        all_activities.append({
+            "id": t,
+            "name": t,
+            "duration": dur[t],
+            "es": es[t], "ef": ef[t],
+            "ls": ls[t], "lf": lf[t],
+            "slack": slack[t],
+            "critical": abs(slack[t]) < 1e-6,
+            "dependencies": list(preds[t]),
+            "tail_node": task_tails[t],
+            "head_node": task_heads[t],
+            "is_dummy": False
+        })
+    all_activities.extend(dummies)
+
+    aoa_succs = defaultdict(list)
+    aoa_preds = defaultdict(list)
+    for act in all_activities:
+        aoa_succs[act["tail_node"]].append(act)
+        aoa_preds[act["head_node"]].append(act)
+        
+    all_node_ids = list(set(aoa_succs.keys()) | set(aoa_preds.keys()))
+    node_earliest = {n: 0.0 for n in all_node_ids}
+    node_latest = {n: projectDuration for n in all_node_ids}
+    
+    in_degree = {n: len(aoa_preds[n]) for n in all_node_ids}
+    q = deque([n for n, deg in in_degree.items() if deg == 0])
+    topo_nodes = []
+    
+    while q:
+        u = q.popleft()
+        topo_nodes.append(u)
+        for act in aoa_succs[u]:
+            v = act["head_node"]
+            in_degree[v] -= 1
+            if in_degree[v] == 0:
+                q.append(v)
+                
+    for u in topo_nodes:
+        for act in aoa_succs[u]:
+            v = act["head_node"]
+            node_earliest[v] = max(node_earliest[v], node_earliest[u] + act["duration"])
+            
+    for u in reversed(topo_nodes):
+        for act in aoa_succs[u]:
+            v = act["head_node"]
+            node_latest[u] = min(node_latest[u], node_latest[v] - act["duration"])
+            
+    for act in all_activities:
+        if act.get("is_dummy"):
+            u = act["tail_node"]
+            v = act["head_node"]
+            act["es"] = node_earliest[u]
+            act["ef"] = node_earliest[u]
+            act["lf"] = node_latest[v]
+            act["ls"] = node_latest[v]
+            act["slack"] = act["ls"] - act["es"]
+            act["critical"] = abs(act["slack"]) < 1e-6
+
+    result_nodes = []
+    id_to_label = {v: node_label_map[k] for k, v in node_id_map.items()}
+    for n_id in all_node_ids:
+        members = [act["id"] for act in aoa_succs[n_id] if not act.get("is_dummy")]
         result_nodes.append({
-            "id": node_id, 
-            "label": node_id,
-            "data_label": label,
-            "earliest": data["earliest"],
-            "latest": data["latest"],
-            "members": data["members"]
+            "id": n_id,
+            "label": n_id,
+            "data_label": id_to_label.get(n_id, n_id),
+            "earliest": node_earliest[n_id],
+            "latest": node_latest[n_id],
+            "members": members
         })
-
-    result_tasks: List[Dict[str, Any]] = []
-    for taskId in topology:
-        tail_id = None
-        head_id = None
-        if taskId in task_to_tail:
-            raw_tail = task_to_tail[taskId]
-            tail_id = key_to_id.get(raw_tail)
-        if taskId in task_to_head:
-            raw_head = task_to_head[taskId]
-            head_id = key_to_id.get(raw_head)
-
-        result_tasks.append({
-            "id": taskId,
-            "name": taskId,
-            "duration": dur[taskId],
-            "es": es[taskId],
-            "ef": ef[taskId],
-            "ls": ls[taskId],
-            "lf": lf[taskId],
-            "slack": slack[taskId],
-            "critical": abs(slack[taskId]) < 1e-6,
-            "dependencies": list(preds[taskId]),
-            "tail_node": tail_id,
-            "head_node": head_id,
-        })
+        
     aon_view = build_aon_view_from_cpm(
-        es=es,
-        ef=ef,
-        ls=ls,
-        lf=lf,
-        slack=slack,
-        preds=preds,
-        succs=succs,
-        topology=topology,
-        dur=dur,
-        project_duration=projectDuration,
+        es=es, ef=ef, ls=ls, lf=lf, slack=slack,
+        preds=preds, succs=succs, topology=topology,
+        dur=dur, project_duration=projectDuration,
     )
+    
     return {
         "project_duration": projectDuration,
-        "tasks": result_tasks,
+        "tasks": all_activities,
         "nodes": result_nodes,
-        "aoa_error": aoa_error,
+        "aoa_error": None, 
         "aon": aon_view
     }
-
-
