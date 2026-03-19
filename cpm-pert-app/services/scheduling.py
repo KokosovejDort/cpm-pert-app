@@ -1,9 +1,7 @@
+from statistics import NormalDist
+import math
 from collections import defaultdict, deque
 from typing import Dict, List, Set, Tuple, Any
-
-class AoANotSupportedError(Exception):
-    """Raised when the AoA network would require dummy activities."""
-    pass
 
 class ScheduleValidationError(Exception):
     def __init__(self, errors: List[Dict[str, Any]]):
@@ -67,6 +65,31 @@ def validate_tasks(tasks: List[Dict[str, Any]]):
                     validation_errors.append({"id": tid, "msg": f"Missing dependency: {dep}"})
     if validation_errors:
         raise ScheduleValidationError(validation_errors)
+
+def validate_pert_tasks(tasks: List[Dict[str, Any]]):
+    """
+    PERT-specific validation: each task must have optimistic ≤ most_likely ≤ pessimistic,
+    all non-negative numbers.  Raises ScheduleValidationError on failure.
+    """
+    errors = []
+    for task in tasks:
+        tid = task.get("id", "?")
+        raw = {k: task.get(k) for k in ("optimistic", "most_likely", "pessimistic")}
+        missing = [k for k, v in raw.items() if v is None]
+        if missing:
+            errors.append({"id": tid, "msg": f"PERT mode requires: {', '.join(missing)}"})
+            continue
+        try:
+            o, m, p = float(raw["optimistic"]), float(raw["most_likely"]), float(raw["pessimistic"])
+        except (TypeError, ValueError):
+            errors.append({"id": tid, "msg": "PERT estimates must be numbers"})
+            continue
+        if o < 0:
+            errors.append({"id": tid, "msg": "Optimistic duration cannot be negative"})
+        elif not (o <= m <= p):
+            errors.append({"id": tid, "msg": "Must satisfy: Optimistic ≤ Most Likely ≤ Pessimistic"})
+    if errors:
+        raise ScheduleValidationError(errors)
 
 
 def cpm_aon(tasks: List[Dict[str, Any]]):
@@ -399,6 +422,58 @@ def analyze_schedule_with_nodes(tasks: List[Dict[str, Any]]):
         "project_duration": projectDuration,
         "tasks": all_activities,
         "nodes": result_nodes,
-        "aoa_error": None, 
         "aon": aon_view
     }
+
+def analyze_pert(tasks: List[Dict[str, Any]]):
+    """
+    PERT analysis using three-point estimates (O, M, P).
+    """
+    pertData: Dict[str, Dict[str, float]] = {}
+    augmented: List[Dict[str, Any]] = []
+
+    for t in tasks:
+        tid = t["id"]
+        o = float(t["optimistic"])
+        m = float(t["most_likely"])
+        p = float(t["pessimistic"])
+        expected  = (o + 4.0 * m + p) / 6.0
+        variance  = ((p - o) / 6.0) ** 2
+        pertData[tid] = {
+            "optimistic":  o,
+            "most_likely": m,
+            "pessimistic": p,
+            "expected":    expected,
+            "variance":    variance,
+            "std_dev":     math.sqrt(variance),
+        }
+        augmented.append({**t, "duration": expected})
+
+    result = analyze_schedule_with_nodes(augmented)
+
+    for task in result["tasks"]:
+        tid = task["id"]
+        if tid in pertData:
+            task.update(pertData[tid])
+
+    critVariance = sum(
+        pertData[t["id"]]["variance"]
+        for t in result["tasks"]
+        if t.get("critical") and not t.get("is_dummy") and t["id"] in pertData
+    )
+    projectStd = math.sqrt(critVariance) if critVariance > 0 else 0.0
+    projectDuration = result["project_duration"]
+
+    result["pert_stats"] = {
+        "expected_duration": projectDuration,
+        "variance":  critVariance,
+        "std_dev":   projectStd,
+        "deadlines": {
+            "p50":  round(projectDuration + NormalDist().inv_cdf(0.50) * projectStd, 2),
+            "p75":  round(projectDuration + NormalDist().inv_cdf(0.75) * projectStd, 2),
+            "p90":  round(projectDuration + NormalDist().inv_cdf(0.90) * projectStd, 2),
+            "p95":  round(projectDuration + NormalDist().inv_cdf(0.95) * projectStd, 2),
+            "p99":  round(projectDuration + NormalDist().inv_cdf(0.99) * projectStd, 2),
+        },
+    }
+    return result

@@ -1,176 +1,281 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>CPM/PERT Scheduler</title>
 
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
-    
-    <link href="https://cdn.jsdelivr.net/npm/bootswatch@5.3.0/dist/zephyr/bootstrap.min.css" rel="stylesheet">
-    
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootswatch@5.3.0/dist/zephyr/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css"
+    />
 
-    <link href="{{ url_for('static', filename='css/style.css') }}?v=1" rel="stylesheet">
-    <link rel="stylesheet" href="https://unpkg.com/frappe-gantt/dist/frappe-gantt.css">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/gantt.css') }}?v=42">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/cpm.css') }}?v=42">
-
-    <style>
-      body { font-family: 'Inter', sans-serif; }
-      .navbar { box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-      .card { border: none; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 1.5rem; }
-      .card-header { background-color: #fff; border-bottom: 1px solid #eee; font-weight: 600; }
-      .gantt-container .popup-wrapper { z-index: 1055; }
-    </style>
+    <link
+      href="{{ url_for('static', filename='css/style.css') }}?v=1"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/frappe-gantt/dist/frappe-gantt.css"
+    />
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/gantt.css') }}?v=42"
+    />
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/network.css') }}?v=1"
+    />
   </head>
   <body class="bg-light">
-
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
       <div class="container">
         <a class="navbar-brand" href="#">
-            <i class="bi bi-diagram-3-fill me-2"></i>CPM/PERT Scheduler
+          <i class="bi bi-diagram-3-fill me-2"></i>CPM/PERT Scheduler
         </a>
         <div class="d-flex gap-2">
-            <button id="btn-health" class="btn btn-outline-light btn-sm">
-                <i class="bi bi-activity"></i> Check API
-            </button>
+          <button id="btn-health" class="btn btn-outline-light btn-sm">
+            <i class="bi bi-activity"></i> Check API
+          </button>
         </div>
       </div>
     </nav>
 
     <main class="container">
-      
       <div class="row mb-3">
         <div class="col-12">
-            <div class="d-flex align-items-center gap-3 mb-2">
-                <div class="form-check form-switch m-0">
-                    <input class="form-check-input" type="checkbox" id="toggle-json">
-                    <label class="form-check-label small text-muted" for="toggle-json">Debug JSON</label>
-                </div>
+          <div class="d-flex align-items-center gap-3 mb-2">
+            <div class="form-check form-switch m-0">
+              <input
+                class="form-check-input"
+                type="checkbox"
+                id="toggle-json"
+              />
+              <label class="form-check-label small text-muted" for="toggle-json"
+                >Debug JSON</label
+              >
             </div>
-            <pre id="out" class="p-2 border rounded bg-white small"></pre>
-            <pre id="debug-json" class="p-2 border rounded bg-white small text-muted"></pre>
+          </div>
+          <pre id="out" class="p-2 border rounded bg-white small"></pre>
+          <pre
+            id="debug-json"
+            class="p-2 border rounded bg-white small text-muted"
+          ></pre>
         </div>
       </div>
 
       <div class="row g-4">
         <div class="col-lg-4">
-            <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <span><i class="bi bi-list-task me-1"></i> Task List</span>
-                    
-                    <label class="btn btn-sm btn-outline-secondary" for="file-upload" title="Upload CSV">
-                        <i class="bi bi-upload"></i> Import
-                        <input type="file" id="file-upload" accept=".csv" hidden />
-                    </label>
+          <div class="card">
+            <div
+              class="card-header d-flex justify-content-between align-items-center"
+            >
+              <div class="d-flex align-items-center gap-2">
+                <span><i class="bi bi-list-task me-1"></i> Task List</span>
+                <div
+                  class="form-check form-switch m-0 ms-2"
+                  title="Switch between CPM (single duration) and PERT (3-point estimates)"
+                >
+                  <input
+                    class="form-check-input"
+                    type="checkbox"
+                    id="toggle-pert"
+                    role="switch"
+                  />
+                  <label
+                    class="form-check-label small fw-normal"
+                    for="toggle-pert"
+                  >
+                    PERT mode
+                  </label>
                 </div>
-                <div class="card-body p-0">
-                    <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
-                        <table id="input-table" class="table table-hover table-striped mb-0 table-sm" style="font-size: 0.9rem;">
-                            <thead class="table-light sticky-top">
-                            <tr>
-                                <th style="width: 15%">ID</th>
-                                <th>Name</th>
-                                <th style="width: 15%">Dur.</th>
-                                <th>Dep.</th>
-                                <th style="width: 5%"></th>
-                            </tr>
-                            </thead>
-                            <tbody>
-                            <tr>
-                                <td contenteditable="true">A</td>
-                                <td contenteditable="true">Start</td>
-                                <td contenteditable="true">2</td>
-                                <td contenteditable="true"></td>
-                                <td><button class="btn-del btn btn-sm btn-outline-danger">Delete</button></td>
-                            </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-                <div class="card-footer bg-white">
-                    <div class="d-grid gap-2 d-md-flex">
-                        <button id="btn-add" class="btn btn-outline-primary btn-sm flex-grow-1">
-                            <i class="bi bi-plus-lg"></i> Add Task
-                        </button>
-                        <button id="btn-save" class="btn btn-outline-success btn-sm flex-grow-1">
-                            <i class="bi bi-save"></i> Save
-                        </button>
-                        <button id="btn-analyze" class="btn btn-primary btn-sm flex-grow-1">
-                            <i class="bi bi-lightning-fill"></i> Analyze
-                        </button>
-                    </div>
-                </div>
+              </div>
+
+              <label
+                class="btn btn-sm btn-outline-secondary"
+                for="file-upload"
+                title="Upload CSV"
+              >
+                <i class="bi bi-upload"></i> Import
+                <input type="file" id="file-upload" accept=".csv" hidden />
+              </label>
             </div>
+            <div class="card-body p-0">
+              <div id="task-table-scroll" class="table-responsive">
+                <table
+                  id="input-table"
+                  class="table table-hover table-striped mb-0 table-sm"
+                >
+                  <thead class="table-light sticky-top">
+                    <tr>
+                      <th>ID</th>
+                      <th>Name</th>
+                      <!-- CPM-only column -->
+                      <th class="col-duration">Dur.</th>
+                      <th>Dep.</th>
+                      <!-- PERT-only columns -->
+                      <th class="col-pert d-none" title="Optimistic estimate">
+                        O
+                      </th>
+                      <th class="col-pert d-none" title="Most Likely estimate">
+                        M
+                      </th>
+                      <th class="col-pert d-none" title="Pessimistic estimate">
+                        P
+                      </th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td contenteditable="true">A</td>
+                      <td contenteditable="true">Start</td>
+                      <!-- Dur (CPM) -->
+                      <td contenteditable="true" class="col-duration-cell">
+                        2
+                      </td>
+                      <td contenteditable="true"></td>
+                      <!-- O, M, P (PERT)  -->
+                      <td
+                        contenteditable="true"
+                        class="col-pert-cell d-none"
+                      ></td>
+                      <td
+                        contenteditable="true"
+                        class="col-pert-cell d-none"
+                      ></td>
+                      <td
+                        contenteditable="true"
+                        class="col-pert-cell d-none"
+                      ></td>
+                      <td>
+                        <button class="btn-del btn btn-sm btn-outline-danger">
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div class="card-footer bg-white">
+              <div
+                id="pert-hint"
+                class="d-none small text-muted mb-2 fst-italic"
+              >
+                <i class="bi bi-info-circle me-1"></i>
+                Enter three time estimates per task: <strong>O</strong>ptimistic
+                ≤ <strong>M</strong>ost Likely ≤ <strong>P</strong>essimistic.
+              </div>
+              <div class="d-grid gap-2 d-md-flex">
+                <button
+                  id="btn-add"
+                  class="btn btn-outline-primary btn-sm flex-grow-1"
+                >
+                  <i class="bi bi-plus-lg"></i> Add Task
+                </button>
+                <button
+                  id="btn-analyze"
+                  class="btn btn-primary btn-sm flex-grow-1"
+                >
+                  <i class="bi bi-lightning-fill"></i> Analyze
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="col-lg-8">
-            
-            <div class="card" id="title-results">
-                <div class="card-header bg-success text-white">
-                    <i class="bi bi-clipboard-data me-1"></i> Summary
+          <div class="card" id="title-results">
+            <div class="card-header bg-success text-white">
+              <i class="bi bi-clipboard-data me-1"></i> Summary
+            </div>
+            <div class="card-body">
+              <div id="cpm-summary" class="row text-center">
+                <div class="text-muted fst-italic">
+                  Run analysis to see results...
                 </div>
-                <div class="card-body">
-                    <div id="cpm-summary" class="row text-center">
-                        <div class="text-muted fst-italic">Run analysis to see results...</div>
-                    </div>
-                </div>
+              </div>
+            </div>
+          </div>
+
+          <ul class="nav nav-tabs" id="resultTabs" role="tablist">
+            <li class="nav-item">
+              <button
+                class="nav-link active"
+                id="gantt-tab"
+                data-bs-toggle="tab"
+                data-bs-target="#tab-gantt"
+                type="button"
+              >
+                <i class="bi bi-bar-chart-steps me-1"></i> Gantt
+              </button>
+            </li>
+            <li class="nav-item">
+              <button
+                class="nav-link"
+                id="network-tab"
+                data-bs-toggle="tab"
+                data-bs-target="#tab-network"
+                type="button"
+              >
+                <i class="bi bi-diagram-2 me-1"></i> Network
+              </button>
+            </li>
+            <li class="nav-item">
+              <button
+                class="nav-link"
+                id="table-tab"
+                data-bs-toggle="tab"
+                data-bs-target="#tab-table"
+                type="button"
+              >
+                <i class="bi bi-table me-1"></i> Data Table
+              </button>
+            </li>
+          </ul>
+
+          <div
+            class="tab-content border border-top-0 bg-white p-3 shadow-sm rounded-bottom"
+          >
+            <div class="tab-pane fade show active" id="tab-gantt">
+              <div id="gantt-panel">
+                <div id="gantt"></div>
+              </div>
             </div>
 
-            <ul class="nav nav-tabs" id="resultTabs" role="tablist">
-                <li class="nav-item">
-                    <button class="nav-link active" id="gantt-tab" data-bs-toggle="tab" data-bs-target="#tab-gantt" type="button">
-                        <i class="bi bi-bar-chart-steps me-1"></i> Gantt
-                    </button>
-                </li>
-                <li class="nav-item">
-                    <button class="nav-link" id="network-tab" data-bs-toggle="tab" data-bs-target="#tab-network" type="button">
-                        <i class="bi bi-diagram-2 me-1"></i> Network
-                    </button>
-                </li>
-                <li class="nav-item">
-                    <button class="nav-link" id="table-tab" data-bs-toggle="tab" data-bs-target="#tab-table" type="button">
-                        <i class="bi bi-table me-1"></i> Data Table
-                    </button>
-                </li>
-            </ul>
-
-            <div class="tab-content border border-top-0 bg-white p-3 shadow-sm rounded-bottom">
-                
-                <div class="tab-pane fade show active" id="tab-gantt">
-                    <h5 id="title-gantt" class="d-none">Gantt Chart</h5> 
-                    <div id="gantt-panel">
-                        <div id="gantt" style="min-height: 300px;"></div>
-                    </div>
+            <div class="tab-pane fade" id="tab-network">
+              <div
+                class="d-flex justify-content-between align-items-center mb-3"
+              >
+                <div class="form-check form-switch">
+                  <input
+                    class="form-check-input"
+                    type="checkbox"
+                    id="toggle-network-mode"
+                  />
+                  <label class="form-check-label" for="toggle-network-mode">
+                    Show AoN (off = AoA)
+                  </label>
                 </div>
-
-                <div class="tab-pane fade" id="tab-network">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h5 id="title-aoa" class="m-0 d-none">Network Diagram</h5>
-                        
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="toggle-network-mode">
-                            <label class="form-check-label" for="toggle-network-mode">
-                                Show AoN (off = AoA)
-                            </label>
-                        </div>
-                    </div>
-
-                    <div id="aoa-error-panel">
-                        <div id="aoa-error"></div>
-                    </div>
-                    
-                    <div id="aoa-panel" class="border rounded bg-light">
-                        <div id="cpm-network" style="height: 400px; width: 100%;"></div>
-                    </div>
-                </div>
-
-                <div class="tab-pane fade" id="tab-table">
-                    <div id="cpm-table" class="table-responsive"></div>
-                </div>
-
+              </div>
+              <div id="aoa-panel" class="border rounded bg-light">
+                <div id="cpm-network"></div>
+              </div>
             </div>
+
+            <div class="tab-pane fade" id="tab-table">
+              <div id="cpm-table" class="table-responsive"></div>
+            </div>
+          </div>
         </div>
       </div>
     </main>
@@ -183,5 +288,14 @@
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
     <script src="{{ url_for('static', filename='js/utility.js') }}?v=2"></script>
     <script src="{{ url_for('static', filename='js/app.js') }}?v=1"></script>
+
+    <script>
+      document
+        .getElementById("toggle-pert")
+        .addEventListener("change", function () {
+          const hint = document.getElementById("pert-hint");
+          if (hint) hint.classList.toggle("d-none", !this.checked);
+        });
+    </script>
   </body>
 </html>

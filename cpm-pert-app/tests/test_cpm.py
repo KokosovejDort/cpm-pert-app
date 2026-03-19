@@ -1,31 +1,12 @@
-import pytest
 import re
-import json
-from playwright.sync_api import expect
+import pytest
 from jsonschema import validate
+from playwright.sync_api import expect
 
-BASE_URL = "http://127.0.0.1:5000"
-
-
-REQUEST_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "tasks": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "id": {"type": "string", "minLength": 1},
-                    "name": {"type": "string", "minLength": 1},
-                    "duration": {"type": "number"},
-                    "dependencies": {"type": "array", "items": {"type": "string"}}
-                },
-                "required": ["id", "name", "duration", "dependencies"]
-            }
-        },
-    },
-    "required": ["tasks"]
-}
+from conftest import (
+    BASE_URL, REQUEST_SCHEMA,
+    fill_rows, click_analyze_and_capture, get_debug_json, normalize,
+)
 
 DATA_ROWS = [
     {"id": "A", "name": "Task A", "duration": "3", "dependencies": ""},
@@ -55,17 +36,13 @@ captured_server_json = None
 
 @pytest.fixture(scope="module", autouse=True)
 def _prepare_shared_session(browser):
-    """
-    Sets up the browser once, fills data, runs analysis, and stores results
-    globally so individual tests can verify different parts of the UI/Response.
-    """
     global shared_ctx, shared_page, captured_payload, captured_server_json
 
     shared_ctx = browser.new_context()
     shared_page = shared_ctx.new_page()
-    
+
     shared_page.goto(BASE_URL, wait_until="domcontentloaded")
-    
+
     toggle = shared_page.locator("#toggle-json")
     expect(toggle).to_be_visible()
     toggle.check()
@@ -75,53 +52,24 @@ def _prepare_shared_session(browser):
     resp, payload = click_analyze_and_capture(shared_page)
     assert resp.status == 200
     validate(instance=payload, schema=REQUEST_SCHEMA)
-    
+
     captured_payload = payload
     captured_server_json = resp.json().get("result")
-    
+
     yield
     shared_ctx.close()
-
-
-def fill_rows(page, rows):
-    add_btn = page.locator("#btn-add")
-    for _ in range(len(rows) - 1):
-        add_btn.click()
-    
-    for i, r in enumerate(rows, start=1):
-        for col_idx, key in enumerate(["id", "name", "duration", "dependencies"], start=1):
-            loc = page.locator(f'#input-table tbody tr:nth-of-type({i}) td:nth-of-type({col_idx})')
-            loc.fill(str(r.get(key, "")))
-
-def click_analyze_and_capture(page):
-    with page.expect_response("**/analyze") as resp_info:
-        page.locator("#btn-analyze").click()
-    resp = resp_info.value
-    try:
-        payload = resp.request.post_data_json
-    except:
-        payload = json.loads(resp.request.post_data or "{}")
-    return resp, payload
-
-def get_debug_json(page):
-    el = page.locator("#debug-json")
-    expect(el).to_be_visible()
-    return json.loads(el.text_content())
-
-def normalize(x):
-    return str(x).replace(".0", "") if str(x).endswith(".0") else str(x)
 
 
 def test_json_payload_accuracy():
     """Verify the payload sent to server matches input and server response."""
     ui_data = get_debug_json(shared_page)
     server_json = captured_server_json
-    
+
     assert server_json["project_duration"] == 22
     assert ui_data["project_duration"] == 22
 
     payload_map = {t["id"]: t for t in captured_payload["tasks"]}
-    
+
     expected_tasks = {
         "A": (3, []),
         "B": (11, ["A"]),
@@ -138,6 +86,7 @@ def test_json_payload_accuracy():
         assert task["duration"] == dur
         assert sorted(task["dependencies"]) == sorted(deps)
 
+
 def test_json_nodes_accuracy():
     """Verify AoA nodes calculation."""
     server_nodes = {n["data_label"]: n for n in captured_server_json["nodes"]}
@@ -151,10 +100,12 @@ def test_json_nodes_accuracy():
 
         assert ui_nodes[label] == server_nodes[label]
 
+
 def test_summary_block_ui():
     summary = shared_page.locator("#cpm-summary").text_content()
-    assert "# Tasks: 8" in summary
-    assert "Critical path: A → B → F → G" in summary
+    assert re.search(r"# Tasks\s+8", summary)
+    assert re.search(r"Critical Path\s+A → B → F → G", summary)
+
 
 def test_table_block_ui():
     shared_page.locator("#table-tab").click()
@@ -183,33 +134,31 @@ def test_table_block_ui():
             expect(row).to_have_class(re.compile(r"cpm-row-critical"))
 
 
-
 @pytest.mark.parametrize("rows, expected_error_part, is_global_error", [
-    ([{"id":"A", "name":"A", "duration":"x", "dependencies":""}], 
+    ([{"id": "A", "name": "A", "duration": "x", "dependencies": ""}],
      "Duration must be a number", False),
-    
-    ([{"id":"A", "name":"A", "duration":"-1", "dependencies":""}], 
+
+    ([{"id": "A", "name": "A", "duration": "-1", "dependencies": ""}],
      "Duration cannot be negative", False),
-    
-    ([{"id":"A", "name":"A", "duration":"1", "dependencies":"A"}], 
+
+    ([{"id": "A", "name": "A", "duration": "1", "dependencies": "A"}],
      "Self-dependency", False),
-     
-    ([{"id":"A", "name":"A", "duration":"1", "dependencies":"B"}], 
+
+    ([{"id": "A", "name": "A", "duration": "1", "dependencies": "B"}],
      "Missing dependency: B", False),
-     
-    ([{"id":"A","name":"A","duration":"1","dependencies":""}, 
-      {"id":"A","name":"Dup","duration":"2","dependencies":""}], 
+
+    ([{"id": "A", "name": "A", "duration": "1", "dependencies": ""},
+      {"id": "A", "name": "Dup", "duration": "2", "dependencies": ""}],
      "Duplicate ID: A", False),
-     
-    ([{"id":"A","name":"A","duration":"1","dependencies":"B"},
-      {"id":"B","name":"B","duration":"1","dependencies":"A"}], 
+
+    ([{"id": "A", "name": "A", "duration": "1", "dependencies": "B"},
+      {"id": "B", "name": "B", "duration": "1", "dependencies": "A"}],
      "Cycle detected", True),
 ])
-
 def test_validation_scenarios(page, rows, expected_error_part, is_global_error):
     page.goto(BASE_URL, wait_until="domcontentloaded")
     fill_rows(page, rows)
-    
+
     resp, _ = click_analyze_and_capture(page)
 
     if is_global_error:
@@ -232,10 +181,11 @@ def test_zero_duration_and_parallel(page):
     ]
     fill_rows(page, rows)
     resp, _ = click_analyze_and_capture(page)
-    
+
     assert resp.status == 200
     res = resp.json()["result"]
     assert res["project_duration"] == 6
+
 
 def test_smart_delete_handling(page):
     """Verifies that deleting a task highlights dependent tasks as errors."""
@@ -245,44 +195,45 @@ def test_smart_delete_handling(page):
         {"id": "A", "duration": "5", "dependencies": ""},
         {"id": "B", "duration": "3", "dependencies": "A"},
     ])
-    
+
     resp, _ = click_analyze_and_capture(page)
     assert resp.status == 200
 
     page.locator("#input-table tbody tr:first-child .btn-del").click()
-    
+
     row_b = page.locator("#input-table tbody tr:first-child")
     expect(row_b.locator("td:nth-child(4)")).to_have_text("A")
     expect(row_b).to_have_class(re.compile(r"table-danger"))
 
     resp2, _ = click_analyze_and_capture(page)
     assert resp2.status == 400
-    
+
     json2 = resp2.json()
     errors = json2["validation_errors"]
     err_b = next((e for e in errors if e["id"] == "B"), None)
-    
+
     assert err_b is not None
     assert "Missing dependency: A" in err_b["msg"]
+
 
 def test_auto_id_generation(page):
     """Generates 300 rows and checks ID sequence A..Z, A1..A26, B1.."""
     page.goto(BASE_URL, wait_until="domcontentloaded")
-    
+
     add_btn = page.locator("#btn-add")
     for _ in range(300):
         add_btn.click()
-        
+
     ids = page.locator("table tbody tr td:nth-child(1)").all_inner_texts()
-    
+
     letters = [chr(ord("A") + i) for i in range(26)]
     expected = []
     idx, suffix = 0, 0
-    while len(expected) < 301: 
+    while len(expected) < 301:
         expected.append(f"{letters[idx]}{suffix if suffix else ''}")
         idx += 1
         if idx == 26:
             idx = 0
             suffix += 1
-            
+
     assert ids == expected

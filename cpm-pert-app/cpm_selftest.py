@@ -20,9 +20,11 @@ def test_linear_chain():
     ]
     res = analyze_schedule_with_nodes(tasks)
     m = task_map(res["tasks"])
-
+    
     # ES/EF/LS/LF
     assert_close(m["A"]["es"], 0, "A ES")
+
+
     assert_close(m["A"]["ef"], 2, "A EF")
     assert_close(m["A"]["ls"], 0, "A LS")
     assert_close(m["A"]["lf"], 2, "A LF")

@@ -1,5 +1,5 @@
 from flask import Flask, jsonify, render_template, request
-from services.scheduling import analyze_schedule_with_nodes, validate_tasks, ScheduleValidationError
+from services.scheduling import *
 from datetime import date
 
 app = Flask(__name__)
@@ -29,12 +29,17 @@ def analyze():
         data = request.get_json(force=True) or {}
         json = data.get("tasks", [])
         projectStart = data.get("project_start")
+        mode = data.get("mode", "cpm")
 
         if not projectStart:
             projectStart = date.today().isoformat()
-
-        validate_tasks(json)
-        result = analyze_schedule_with_nodes(json)
+        if mode == "pert":
+            validate_pert_tasks(json)
+            result = analyze_pert(json)
+        else:
+            validate_tasks(json)
+            result = analyze_schedule_with_nodes(json)
+            
         result["project_start"] = projectStart
         return jsonify({"ok": True, "result": result})
     except ScheduleValidationError as e:
