@@ -15,13 +15,8 @@ body {
   border-bottom: 1px solid #eee;
   font-weight: 600;
 }
-.gantt-container .popup-wrapper {
-  z-index: 1055;
-}
-
 /* ------------------ Debug JSON & Output ------------------ */
-#debug-json:empty,
-#out:empty {
+#debug-json:empty {
   display: none;
 }
 
@@ -58,6 +53,9 @@ body {
 
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  white-space: pre-wrap;
 }
 
 #out.ok {
@@ -79,6 +77,21 @@ body {
   color: #b45309;
   border: 1px solid #fef3c7;
   border-left: 4px solid #f59e0b;
+}
+
+.out-close {
+  background: none;
+  border: none;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+  flex-shrink: 0;
+  color: inherit;
+  opacity: 0.6;
+}
+.out-close:hover {
+  opacity: 1;
 }
 
 /* ------------------ CPM Results Table ------------------ */

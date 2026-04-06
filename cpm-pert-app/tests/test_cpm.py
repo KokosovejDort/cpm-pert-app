@@ -139,7 +139,7 @@ def test_table_block_ui():
      "Duration must be a number", False),
 
     ([{"id": "A", "name": "A", "duration": "-1", "dependencies": ""}],
-     "Duration cannot be negative", False),
+     "Duration must be greater than zero", False),
 
     ([{"id": "A", "name": "A", "duration": "1", "dependencies": "A"}],
      "Self-dependency", False),
@@ -170,21 +170,30 @@ def test_validation_scenarios(page, rows, expected_error_part, is_global_error):
         assert expected_error_part in title_text
 
 
-def test_zero_duration_and_parallel(page):
-    """Specific logic check for 0 duration tasks."""
+def test_zero_duration_rejected(page):
+    """Tasks with duration 0 must be rejected with a validation error."""
     page.goto(BASE_URL, wait_until="domcontentloaded")
     rows = [
         {"id": "A", "duration": "0", "dependencies": ""},
         {"id": "B", "duration": "2", "dependencies": "A"},
-        {"id": "C", "duration": "5", "dependencies": "A"},
-        {"id": "D", "duration": "1", "dependencies": "B, C"},
     ]
     fill_rows(page, rows)
     resp, _ = click_analyze_and_capture(page)
 
-    assert resp.status == 200
-    res = resp.json()["result"]
-    assert res["project_duration"] == 6
+    assert resp.status == 400
+    errors = resp.json().get("validation_errors", [])
+    assert any(e["id"] == "A" and "greater than zero" in e["msg"] for e in errors)
+
+
+def test_zero_duration_row_highlighted(page):
+    """Row with duration 0 is highlighted in the table after background validation."""
+    page.goto(BASE_URL, wait_until="domcontentloaded")
+    fill_rows(page, [{"id": "A", "duration": "0", "dependencies": ""}])
+    page.wait_for_timeout(700)  # debounced validation delay
+
+    error_row = page.locator("#input-table tbody tr.table-danger").first
+    expect(error_row).to_be_visible()
+    assert "greater than zero" in (error_row.get_attribute("title") or "")
 
 
 def test_smart_delete_handling(page):
@@ -224,7 +233,7 @@ def test_auto_id_generation(page):
     for _ in range(300):
         add_btn.click()
 
-    ids = page.locator("table tbody tr td:nth-child(1)").all_inner_texts()
+    ids = page.locator("#input-table tbody tr td:nth-child(1)").all_inner_texts()
 
     letters = [chr(ord("A") + i) for i in range(26)]
     expected = []

@@ -1,7 +1,7 @@
 from statistics import NormalDist
 import math
 from collections import defaultdict, deque
-from typing import Dict, List, Set, Tuple, Any
+from typing import Dict, List, Set, Any
 
 class ScheduleValidationError(Exception):
     def __init__(self, errors: List[Dict[str, Any]]):
@@ -9,68 +9,76 @@ class ScheduleValidationError(Exception):
         super().__init__("Validation failed")
 
 
-def validate_tasks(tasks: List[Dict[str, Any]]):
-    """
-    Validates tasks and raises ScheduleValidationError with a list of specific errors
-    if any issues are found.
-    """
+# ── Validation ────────────────────────────────────────────────────────────────
 
+def validate_common(tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Structural checks shared by both CPM and PERT modes.
+    Returns a list of error dicts (does not raise).
+    """
     if not isinstance(tasks, list):
         raise ValueError("Wrong type of objects sent")
-        
+
     if not tasks:
         raise ValueError("Input must be a non-empty list of task objects")
 
-    validation_errors = []
+    errors = []
     valid_ids = set()
     seen_ids = set()
 
     for i, task in enumerate(tasks, start=1):
         tid = task.get("id")
         if not tid or not isinstance(tid, str):
-            validation_errors.append({"id": None, "msg": f"Row {i} missing ID"})
+            errors.append({"id": None, "msg": f"Row {i} missing ID"})
             continue
-            
+
         if tid in seen_ids:
-            validation_errors.append({"id": tid, "msg": f"Duplicate ID: {tid}"})
+            errors.append({"id": tid, "msg": f"Duplicate ID: {tid}"})
         else:
             seen_ids.add(tid)
             valid_ids.add(tid)
 
-        if "duration" not in task:
-             validation_errors.append({"id": tid, "msg": "Missing duration"})
-        else:
-            try:
-                d = float(task["duration"])
-                if d < 0:
-                    validation_errors.append({"id": tid, "msg": "Duration cannot be negative"})
-            except:
-                validation_errors.append({"id": tid, "msg": "Duration must be a number"})
-
         deps = task.get("dependencies")
         if deps is not None and not isinstance(deps, list):
-             validation_errors.append({"id": tid, "msg": "Dependencies must be a list"})
-        
+            errors.append({"id": tid, "msg": "Dependencies must be a list"})
+
     for task in tasks:
         tid = task.get("id")
-        if not tid or tid not in valid_ids: 
-            continue 
+        if not tid or tid not in valid_ids:
+            continue
 
         deps = task.get("dependencies", [])
         if isinstance(deps, list):
             for dep in deps:
                 if dep == tid:
-                    validation_errors.append({"id": tid, "msg": "Self-dependency"})
+                    errors.append({"id": tid, "msg": "Self-dependency"})
                 elif dep not in valid_ids:
-                    validation_errors.append({"id": tid, "msg": f"Missing dependency: {dep}"})
-    if validation_errors:
-        raise ScheduleValidationError(validation_errors)
+                    errors.append({"id": tid, "msg": f"Missing dependency: {dep}"})
 
-def validate_pert_tasks(tasks: List[Dict[str, Any]]):
-    """
-    PERT-specific validation: each task must have optimistic ≤ most_likely ≤ pessimistic,
-    all non-negative numbers.  Raises ScheduleValidationError on failure.
-    """
+    return errors
+
+
+def validate_cpm_fields(tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """CPM-specific validation: each task must have a duration > 0. Returns error list."""
+    errors = []
+    for task in tasks:
+        tid = task.get("id")
+        if not tid or not isinstance(tid, str):
+            continue  # already caught by validate_common
+        if "duration" not in task:
+            errors.append({"id": tid, "msg": "Missing duration"})
+        else:
+            try:
+                d = float(task["duration"])
+                if d <= 0:
+                    errors.append({"id": tid, "msg": "Duration must be greater than zero"})
+            except (TypeError, ValueError):
+                errors.append({"id": tid, "msg": "Duration must be a number"})
+    return errors
+
+
+def validate_pert_fields(tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """PERT-specific validation: each task must have optimistic ≤ most_likely ≤ pessimistic. Returns error list."""
     errors = []
     for task in tasks:
         tid = task.get("id", "?")
@@ -84,18 +92,19 @@ def validate_pert_tasks(tasks: List[Dict[str, Any]]):
         except (TypeError, ValueError):
             errors.append({"id": tid, "msg": "PERT estimates must be numbers"})
             continue
-        if o < 0:
-            errors.append({"id": tid, "msg": "Optimistic duration cannot be negative"})
+        if o <= 0 or m <= 0 or p <= 0:
+            errors.append({"id": tid, "msg": "Optimistic, Most Likely and Pessimistic must all be greater than zero"})
         elif not (o <= m <= p):
             errors.append({"id": tid, "msg": "Must satisfy: Optimistic ≤ Most Likely ≤ Pessimistic"})
-    if errors:
-        raise ScheduleValidationError(errors)
+    return errors
 
 
-def cpm_aon(tasks: List[Dict[str, Any]]):
+# ── Core Algorithm ────────────────────────────────────────────────────────────
+
+def _forward_backward_pass(tasks: List[Dict[str, Any]]):
     """
-    Core CPM on Activity-on-Node (AON) network.
-    Returns all activity times plus graph relationships.
+    Topological sort + forward pass (ES/EF) + backward pass (LS/LF).
+    Returns activity times and graph relationships for use by both CPM and PERT.
     """
     preds: Dict[str, Set[str]] = {t["id"]: set(t.get("dependencies", [])) for t in tasks}
     succs: Dict[str, Set[str]] = defaultdict(set)
@@ -105,94 +114,47 @@ def cpm_aon(tasks: List[Dict[str, Any]]):
         for pred in task.get("dependencies", []):
             succs[pred].add(task["id"])
 
-    dependenciesCount: Dict[str, int] = {
+    in_degree: Dict[str, int] = {
         taskId: len(preds[taskId]) for taskId in preds
     }
     queue: deque[str] = deque([
-        taskId 
-        for taskId, depCount in dependenciesCount.items()
+        taskId
+        for taskId, depCount in in_degree.items()
         if depCount == 0
     ])
-    topologicalOder: List[str] = []
+    topological_order: List[str] = []
 
-    # It loops — each iteration it takes a task off the queue, adds it to the order, and "unlocks" its successors by decrementing their count:
-    # Iteration 1:
-    # pop "A" → topologicalOrder = ["A"]
-    # A's successor is B → dependenciesCount["B"] becomes 0 → add B to queue
-
-    # Iteration 2:
-    # pop "B" → topologicalOrder = ["A", "B"]
-    # B's successor is C → dependenciesCount["C"] becomes 0 → add C to queue
-
-    # Iteration 3:
-    # pop "C" → topologicalOrder = ["A", "B", "C"]
-    # C has no successors → nothing added
     while queue:
         currentTaskId = queue.popleft()
-        topologicalOder.append(currentTaskId)
+        topological_order.append(currentTaskId)
 
         for dependentTaskId in succs[currentTaskId]:
-            dependenciesCount[dependentTaskId] -= 1
-            if dependenciesCount[dependentTaskId] == 0:
+            in_degree[dependentTaskId] -= 1
+            if in_degree[dependentTaskId] == 0:
                 queue.append(dependentTaskId)
 
-    if len(topologicalOder) != len(tasks):
+    if len(topological_order) != len(tasks):
         raise ValueError("Cycle detected in dependencies")
 
     es: Dict[str, float] = {}
     ef: Dict[str, float] = {}
 
-    for taskId in topologicalOder:
+    for taskId in topological_order:
         es[taskId] = max((ef[p] for p in preds[taskId]), default=0.0)
         ef[taskId] = es[taskId] + dur[taskId]
-    projectDuration = max(ef.values(), default=0.0)
+    project_duration = max(ef.values(), default=0.0)
 
     ls: Dict[str, float] = {}
     lf: Dict[str, float] = {}
-    for taskId in reversed(topologicalOder):
-        lf[taskId] = min((ls[s] for s in succs[taskId]), default=projectDuration)
+    for taskId in reversed(topological_order):
+        lf[taskId] = min((ls[s] for s in succs[taskId]), default=project_duration)
         ls[taskId] = lf[taskId] - dur[taskId]
 
-    slack: Dict[str, float] = {taskId: ls[taskId] - es[taskId] for taskId in topologicalOder}
-    return es, ef, ls, lf, slack, projectDuration, preds, succs, topologicalOder, dur
+    slack: Dict[str, float] = {taskId: ls[taskId] - es[taskId] for taskId in topological_order}
+    return es, ef, ls, lf, slack, project_duration, preds, succs, topological_order, dur
 
 
-def derive_event_nodes(
-    es: Dict[str, float],
-    ef: Dict[str, float],
-    ls: Dict[str, float],
-    lf: Dict[str, float],
-    preds: Dict[str, Set[str]],
-    project_duration: float
-):
-    """
-    Derive AOA-style event (node) times from AON results.
-    Each unique predecessor set becomes one event node.
-    """
-    groups: Dict[Tuple[str, ...], List[str]] = defaultdict(list)
-    for taskId, predsSet in preds.items():
-        key = tuple(sorted(predsSet))
-        groups[key].append(taskId)
-
-    nodes: Dict[str, Dict[str, Any]] = {}
-
-    nodes["START"] = {
-        "earliest": 0.0,
-        "latest": 0.0,
-        "members": groups[()]
-    }
-    if () in groups:
-        del groups[()]
-
-    for key, members in groups.items():
-        earliest = max((ef[pred] for pred in key), default=0.0)
-        latest = min(ls[taskId] for taskId in members)
-        nodes[key] = {"earliest": earliest, "latest": latest, "members": members}
-
-    nodes["END"] = {"earliest": project_duration, "latest": project_duration, "members": []}
-    return nodes
-
-def build_aon_view_from_cpm(
+def _build_aon_view(
     es: Dict[str, float],
     ef: Dict[str, float],
     ls: Dict[str, float],
@@ -241,8 +203,10 @@ def build_aon_view_from_cpm(
     }
 
 
-def analyze_schedule_with_nodes(tasks: List[Dict[str, Any]]):
-    es, ef, ls, lf, slack, projectDuration, preds, succs, topology, dur = cpm_aon(tasks)
+# ── Full Schedule Analysis ────────────────────────────────────────────────────
+
+def _compute_schedule(tasks: List[Dict[str, Any]]):
+    es, ef, ls, lf, slack, project_duration, preds, succs, topology, dur = _forward_backward_pass(tasks)
     
     pred_sets = set()
     for t in tasks:
@@ -338,11 +302,13 @@ def analyze_schedule_with_nodes(tasks: List[Dict[str, Any]]):
                     dummy_counter += 1
                     seen_edges.add((x_head, s_node))
 
+    task_names = {task["id"]: task.get("name") or task["id"] for task in tasks}
+
     all_activities = []
     for t in topology:
         all_activities.append({
             "id": t,
-            "name": t,
+            "name": task_names[t],
             "duration": dur[t],
             "es": es[t], "ef": ef[t],
             "ls": ls[t], "lf": lf[t],
@@ -363,7 +329,7 @@ def analyze_schedule_with_nodes(tasks: List[Dict[str, Any]]):
         
     all_node_ids = list(set(aoa_succs.keys()) | set(aoa_preds.keys()))
     node_earliest = {n: 0.0 for n in all_node_ids}
-    node_latest = {n: projectDuration for n in all_node_ids}
+    node_latest = {n: project_duration for n in all_node_ids}
     
     in_degree = {n: len(aoa_preds[n]) for n in all_node_ids}
     q = deque([n for n, deg in in_degree.items() if deg == 0])
@@ -412,34 +378,45 @@ def analyze_schedule_with_nodes(tasks: List[Dict[str, Any]]):
             "members": members
         })
         
-    aon_view = build_aon_view_from_cpm(
+    aon_view = _build_aon_view(
         es=es, ef=ef, ls=ls, lf=lf, slack=slack,
         preds=preds, succs=succs, topology=topology,
-        dur=dur, project_duration=projectDuration,
+        dur=dur, project_duration=project_duration,
     )
-    
+
     return {
-        "project_duration": projectDuration,
+        "project_duration": project_duration,
         "tasks": all_activities,
         "nodes": result_nodes,
         "aon": aon_view
     }
 
+
+# ── Public API ────────────────────────────────────────────────────────────────
+
+def analyze_cpm(tasks: List[Dict[str, Any]]):
+    errors = validate_common(tasks) + validate_cpm_fields(tasks)
+    if errors:
+        raise ScheduleValidationError(errors)
+    return _compute_schedule(tasks)
+
+
 def analyze_pert(tasks: List[Dict[str, Any]]):
-    """
-    PERT analysis using three-point estimates (O, M, P).
-    """
-    pertData: Dict[str, Dict[str, float]] = {}
-    augmented: List[Dict[str, Any]] = []
+    errors = validate_common(tasks) + validate_pert_fields(tasks)
+    if errors:
+        raise ScheduleValidationError(errors)
+
+    pert_data: Dict[str, Dict[str, float]] = {}
+    cpm_tasks: List[Dict[str, Any]] = []
 
     for t in tasks:
-        tid = t["id"]
+        task_id = t["id"]
         o = float(t["optimistic"])
         m = float(t["most_likely"])
         p = float(t["pessimistic"])
         expected  = (o + 4.0 * m + p) / 6.0
         variance  = ((p - o) / 6.0) ** 2
-        pertData[tid] = {
+        pert_data[task_id] = {
             "optimistic":  o,
             "most_likely": m,
             "pessimistic": p,
@@ -447,33 +424,33 @@ def analyze_pert(tasks: List[Dict[str, Any]]):
             "variance":    variance,
             "std_dev":     math.sqrt(variance),
         }
-        augmented.append({**t, "duration": expected})
+        cpm_tasks.append({**t, "duration": expected})
 
-    result = analyze_schedule_with_nodes(augmented)
+    result = _compute_schedule(cpm_tasks)
 
     for task in result["tasks"]:
-        tid = task["id"]
-        if tid in pertData:
-            task.update(pertData[tid])
+        task_id = task["id"]
+        if task_id in pert_data:
+            task.update(pert_data[task_id])
 
-    critVariance = sum(
-        pertData[t["id"]]["variance"]
+    crit_variance = sum(
+        pert_data[t["id"]]["variance"]
         for t in result["tasks"]
-        if t.get("critical") and not t.get("is_dummy") and t["id"] in pertData
+        if t.get("critical") and not t.get("is_dummy") and t["id"] in pert_data
     )
-    projectStd = math.sqrt(critVariance) if critVariance > 0 else 0.0
-    projectDuration = result["project_duration"]
+    project_std = math.sqrt(crit_variance) if crit_variance > 0 else 0.0
+    project_duration = result["project_duration"]
 
     result["pert_stats"] = {
-        "expected_duration": projectDuration,
-        "variance":  critVariance,
-        "std_dev":   projectStd,
+        "expected_duration": project_duration,
+        "variance":  crit_variance,
+        "std_dev":   project_std,
         "deadlines": {
-            "p50":  round(projectDuration + NormalDist().inv_cdf(0.50) * projectStd, 2),
-            "p75":  round(projectDuration + NormalDist().inv_cdf(0.75) * projectStd, 2),
-            "p90":  round(projectDuration + NormalDist().inv_cdf(0.90) * projectStd, 2),
-            "p95":  round(projectDuration + NormalDist().inv_cdf(0.95) * projectStd, 2),
-            "p99":  round(projectDuration + NormalDist().inv_cdf(0.99) * projectStd, 2),
+            "p50":  round(project_duration + NormalDist().inv_cdf(0.50) * project_std, 2),
+            "p75":  round(project_duration + NormalDist().inv_cdf(0.75) * project_std, 2),
+            "p90":  round(project_duration + NormalDist().inv_cdf(0.90) * project_std, 2),
+            "p95":  round(project_duration + NormalDist().inv_cdf(0.95) * project_std, 2),
+            "p99":  round(project_duration + NormalDist().inv_cdf(0.99) * project_std, 2),
         },
     }
     return result

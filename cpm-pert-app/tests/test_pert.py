@@ -295,7 +295,20 @@ def test_pert_data_persists_after_reload(page):
 
     # Negative optimistic
     ([{"id": "A", "optimistic": "-1", "most_likely": "2", "pessimistic": "5", "dependencies": ""}],
-     "Optimistic duration cannot be negative"),
+     "must all be greater than zero"),
+
+    # Duplicate ID
+    ([{"id": "A", "optimistic": "1", "most_likely": "2", "pessimistic": "3", "dependencies": ""},
+      {"id": "A", "optimistic": "1", "most_likely": "2", "pessimistic": "3", "dependencies": ""}],
+     "Duplicate ID"),
+
+    # Reference to non-existent dependency
+    ([{"id": "A", "optimistic": "1", "most_likely": "2", "pessimistic": "3", "dependencies": "Z"}],
+     "Missing dependency"),
+
+    # Self-dependency
+    ([{"id": "A", "optimistic": "1", "most_likely": "2", "pessimistic": "3", "dependencies": "A"}],
+     "Self-dependency"),
 ])
 def test_pert_validation_scenarios(page, rows, expected_error_part):
     page.goto(BASE_URL, wait_until="domcontentloaded")

@@ -24,10 +24,6 @@
     />
     <link
       rel="stylesheet"
-      href="https://unpkg.com/frappe-gantt/dist/frappe-gantt.css"
-    />
-    <link
-      rel="stylesheet"
       href="{{ url_for('static', filename='css/gantt.css') }}?v=42"
     />
     <link
@@ -64,7 +60,10 @@
               >
             </div>
           </div>
-          <pre id="out" class="p-2 border rounded bg-white small"></pre>
+          <div id="out" style="display:none;">
+            <span id="out-text"></span>
+            <button id="out-close" class="out-close" aria-label="Dismiss">&times;</button>
+          </div>
           <pre
             id="debug-json"
             class="p-2 border rounded bg-white small text-muted"
@@ -99,14 +98,46 @@
                 </div>
               </div>
 
-              <label
-                class="btn btn-sm btn-outline-secondary"
-                for="file-upload"
-                title="Upload CSV"
-              >
-                <i class="bi bi-upload"></i> Import
-                <input type="file" id="file-upload" accept=".csv" hidden />
-              </label>
+              <div class="d-flex gap-1 align-items-center">
+                <div class="dropdown">
+                  <button
+                    class="btn btn-sm btn-outline-secondary dropdown-toggle"
+                    type="button"
+                    data-bs-toggle="dropdown"
+                    aria-expanded="false"
+                  >
+                    <i class="bi bi-upload"></i> Import
+                  </button>
+                  <ul class="dropdown-menu dropdown-menu-end" style="z-index: 1030">
+                    <li>
+                      <label class="dropdown-item" for="file-upload-csv">
+                        <i class="bi bi-filetype-csv me-2"></i>CSV
+                        <input type="file" id="file-upload-csv" accept=".csv" hidden />
+                      </label>
+                    </li>
+                    <li>
+                      <label class="dropdown-item" for="file-upload-json">
+                        <i class="bi bi-filetype-json me-2"></i>JSON
+                        <input type="file" id="file-upload-json" accept=".json" hidden />
+                      </label>
+                    </li>
+                    <li>
+                      <label class="dropdown-item" for="file-upload-xlsx">
+                        <i class="bi bi-file-earmark-spreadsheet me-2"></i>Excel (.xlsx)
+                        <input type="file" id="file-upload-xlsx" accept=".xlsx,.xls" hidden />
+                      </label>
+                    </li>
+                  </ul>
+                </div>
+                <button
+                  class="btn btn-sm btn-outline-secondary"
+                  data-bs-toggle="modal"
+                  data-bs-target="#import-format-modal"
+                  title="Show expected file formats"
+                >
+                  <i class="bi bi-info-circle"></i>
+                </button>
+              </div>
             </div>
             <div class="card-body p-0">
               <div id="task-table-scroll" class="table-responsive">
@@ -194,7 +225,7 @@
         </div>
 
         <div class="col-lg-8">
-          <div class="card" id="title-results">
+          <div class="card">
             <div class="card-header bg-success text-white">
               <i class="bi bi-clipboard-data me-1"></i> Summary
             </div>
@@ -247,7 +278,16 @@
             class="tab-content border border-top-0 bg-white p-3 shadow-sm rounded-bottom"
           >
             <div class="tab-pane fade show active" id="tab-gantt">
+              <div class="d-flex justify-content-end mb-2">
+                <button id="btn-export-gantt" class="btn btn-sm btn-outline-secondary">
+                  <i class="bi bi-image"></i> Export PNG
+                </button>
+              </div>
               <div id="gantt-panel">
+                <div id="gantt-pert-warning" class="gantt-pert-warning d-none">
+                  Drag &amp; drop is not available in PERT mode. Switch to CPM mode to adjust durations.
+                  <button class="gantt-pert-warning-close" onclick="this.parentElement.classList.add('d-none')">&times;</button>
+                </div>
                 <div id="gantt"></div>
               </div>
             </div>
@@ -266,10 +306,11 @@
                     Show AoN (off = AoA)
                   </label>
                 </div>
+                <button id="btn-export-network" class="btn btn-sm btn-outline-secondary">
+                  <i class="bi bi-image"></i> Export PNG
+                </button>
               </div>
-              <div id="aoa-panel" class="border rounded bg-light">
-                <div id="cpm-network"></div>
-              </div>
+              <div id="cpm-network" class="border rounded bg-light"></div>
             </div>
 
             <div class="tab-pane fade" id="tab-table">
@@ -280,22 +321,74 @@
       </div>
     </main>
 
+    <!-- Import format reference modal -->
+    <div class="modal fade" id="import-format-modal" tabindex="-1">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">
+              <i class="bi bi-info-circle me-2"></i>Import File Formats
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <h6>CSV</h6>
+            <p class="text-muted small mb-1">
+              Header row required. CPM: <code>ac, pr, du, name</code>.
+              PERT: <code>ac, pr, opt, ml, pess, name</code>.
+              Multiple predecessors: concatenated letters (<code>AB</code>) or comma-separated.
+            </p>
+            <pre class="bg-light p-2 rounded small">ac,pr,du,name
+A,-,3,Design
+B,A,5,Build
+C,AB,2,Test</pre>
+
+            <h6 class="mt-3">JSON</h6>
+            <p class="text-muted small mb-1">
+              Array of task objects. CPM tasks use <code>duration</code>;
+              PERT tasks use <code>optimistic</code>, <code>most_likely</code>, <code>pessimistic</code>.
+              <code>dependencies</code> may be a string or an array.
+            </p>
+            <pre class="bg-light p-2 rounded small">[
+  { "id": "A", "name": "Design", "duration": 3, "dependencies": "" },
+  { "id": "B", "name": "Build",  "duration": 5, "dependencies": "A" },
+  { "id": "C", "name": "Test",   "duration": 2, "dependencies": ["A","B"] }
+]</pre>
+
+            <h6 class="mt-3">Excel (.xlsx)</h6>
+            <p class="text-muted small mb-1">
+              First sheet is used. Same column layout as CSV — first row must be a header.
+            </p>
+            <table class="table table-sm table-bordered small mb-0">
+              <thead class="table-light">
+                <tr><th>ac</th><th>pr</th><th>du</th><th>name</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>A</td><td>-</td><td>3</td><td>Design</td></tr>
+                <tr><td>B</td><td>A</td><td>5</td><td>Build</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://unpkg.com/cytoscape@3.30.0/dist/cytoscape.min.js"></script>
     <script src="https://unpkg.com/dagre@0.8.5/dist/dagre.min.js"></script>
     <script src="https://unpkg.com/cytoscape-dagre@2.5.0/cytoscape-dagre.js"></script>
-    <script src="https://unpkg.com/frappe-gantt/dist/frappe-gantt.umd.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
-    <script src="{{ url_for('static', filename='js/utility.js') }}?v=2"></script>
+    <script src="{{ url_for('static', filename='js/utility/helpers.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/utility/table.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/utility/state.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/utility/validation.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/utility/cpm-results.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/utility/gantt.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/utility/network.js') }}"></script>
     <script src="{{ url_for('static', filename='js/app.js') }}?v=1"></script>
 
-    <script>
-      document
-        .getElementById("toggle-pert")
-        .addEventListener("change", function () {
-          const hint = document.getElementById("pert-hint");
-          if (hint) hint.classList.toggle("d-none", !this.checked);
-        });
-    </script>
   </body>
 </html>
