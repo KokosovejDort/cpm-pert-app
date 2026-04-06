@@ -94,8 +94,7 @@ function parseCpmCsv(text) {
     throw new Error("CSV must contain a header and at least one data row.");
 
   const headerCols = lines[0].toLowerCase().split(",").map((c) => c.trim());
-  const PERT_HEADERS = new Set(["optimistic", "most", "most_likely", "ml", "pessimistic", "pess", "opt", "m"]);
-  const isPert = headerCols.some((c) => PERT_HEADERS.has(c));
+  const isPert = headerCols.some((c) => c === "opt" || c === "ml" || c === "pess");
 
   return lines.slice(1).map((line, idx) => {
     const rowNumber = idx + 2;
@@ -190,8 +189,8 @@ function handleFileUpload(event) {
 
   function onError(format, err) {
     console.error(err);
-    if (out) show(out, "error", `Failed to import ${format}: ${err.message}`);
-    else alert(`Failed to import ${format}: ${err.message}`);
+    const hint = " — Check header names and correct format (ⓘ Import).";
+    show(out, "error", `Failed to import ${format}: ${err.message}${hint}`);
   }
 
   if (ext === "json") {

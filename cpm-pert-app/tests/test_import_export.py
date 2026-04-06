@@ -102,6 +102,50 @@ def test_csv_import_populates_table(page, tmp_path):
     assert "A" in dep_text and "B" in dep_text
 
 
+def test_csv_pert_import_populates_pert_columns(page, tmp_path):
+    """Uploading a PERT CSV with opt/ml/pess headers populates O/M/P columns."""
+    csv_file = tmp_path / "pert.csv"
+    csv_file.write_text(
+        "ac,pr,opt,ml,pess,name\nA,-,2,4,6,Alpha\nB,A,1,3,5,Beta\n",
+        encoding="utf-8",
+    )
+    page.goto(BASE_URL, wait_until="domcontentloaded")
+    page.locator("#file-upload-csv").set_input_files(str(csv_file))
+
+    rows = page.locator("#input-table tbody tr")
+    expect(rows).to_have_count(2)
+
+    # O/M/P cells are hidden until PERT mode is enabled
+    page.locator("#toggle-pert").check()
+
+    row1 = rows.nth(0)
+    expect(row1.locator("td:nth-child(5)")).to_have_text("2")  # O
+    expect(row1.locator("td:nth-child(6)")).to_have_text("4")  # M
+    expect(row1.locator("td:nth-child(7)")).to_have_text("6")  # P
+
+    row2 = rows.nth(1)
+    expect(row2.locator("td:nth-child(5)")).to_have_text("1")
+    expect(row2.locator("td:nth-child(6)")).to_have_text("3")
+    expect(row2.locator("td:nth-child(7)")).to_have_text("5")
+
+
+def test_csv_pert_wrong_aliases_shows_error(page, tmp_path):
+    """CSV with long-form PERT aliases is not recognized as PERT — generic error with hint shown."""
+    csv_file = tmp_path / "wrong_pert.csv"
+    # Non-numeric values in the duration slot ensure CPM parse fails with an error
+    csv_file.write_text(
+        "ac,pr,optimistic,most_likely,pessimistic,name\nA,-,low,medium,high,Alpha\n",
+        encoding="utf-8",
+    )
+    page.goto(BASE_URL, wait_until="domcontentloaded")
+    page.locator("#file-upload-csv").set_input_files(str(csv_file))
+
+    out = page.locator("#out")
+    expect(out).to_be_visible()
+    expect(out).to_have_class(re.compile(r"error"))
+    expect(page.locator("#out-text")).to_contain_text("Check header names")
+
+
 def test_csv_import_allows_reanalysis(page, tmp_path):
     """After a CSV import the Analyze button produces a valid CPM result."""
     csv_file = tmp_path / "tasks.csv"
