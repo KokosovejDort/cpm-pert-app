@@ -115,7 +115,10 @@ def test_csv_pert_import_populates_pert_columns(page, tmp_path):
     rows = page.locator("#input-table tbody tr")
     expect(rows).to_have_count(2)
 
+    expect(page.locator("#toggle-pert")).to_be_checked()
+
     row1 = rows.nth(0)
+    expect(row1.locator("td:nth-child(5)")).to_be_visible()
     expect(row1.locator("td:nth-child(5)")).to_have_text("2")  # O
     expect(row1.locator("td:nth-child(6)")).to_have_text("4")  # M
     expect(row1.locator("td:nth-child(7)")).to_have_text("6")  # P
@@ -224,8 +227,11 @@ def test_json_pert_import_populates_pert_columns(page, tmp_path):
     rows = page.locator("#input-table tbody tr")
     expect(rows).to_have_count(2)
 
+    expect(page.locator("#toggle-pert")).to_be_checked()
+
     # Columns (1-based nth-child): ID=1, Name=2, Dur=3, Dep=4, O=5, M=6, P=7
     row1 = rows.nth(0)
+    expect(row1.locator("td:nth-child(5)")).to_be_visible()
     expect(row1.locator("td:nth-child(5)")).to_have_text("2")
     expect(row1.locator("td:nth-child(6)")).to_have_text("4")
     expect(row1.locator("td:nth-child(7)")).to_have_text("6")
@@ -249,6 +255,25 @@ def test_json_pert_import_auto_switches_to_pert_mode(page, tmp_path):
 
     expect(page.locator("#toggle-pert")).to_be_checked()
     expect(page.locator("#input-table tbody tr")).to_have_count(1)
+
+
+def test_json_cpm_import_while_in_pert_mode_auto_switches(page, tmp_path):
+    """Uploading a CPM JSON file while in PERT mode automatically flips the toggle back to CPM."""
+    tasks = [
+        {"id": "A", "name": "Alpha", "duration": 3, "dependencies": ""},
+        {"id": "B", "name": "Beta",  "duration": 5, "dependencies": "A"},
+    ]
+    json_file = tmp_path / "cpm.json"
+    json_file.write_text(json.dumps(tasks), encoding="utf-8")
+
+    page.goto(BASE_URL, wait_until="domcontentloaded")
+    page.locator("#toggle-pert").check()
+    expect(page.locator("#toggle-pert")).to_be_checked()
+
+    page.locator("#file-upload-json").set_input_files(str(json_file))
+
+    expect(page.locator("#toggle-pert")).not_to_be_checked()
+    expect(page.locator("#input-table tbody tr")).to_have_count(2)
 
 
 def test_json_import_with_array_dependencies(page, tmp_path):
@@ -293,24 +318,34 @@ def test_xlsx_import_populates_table(page, tmp_path):
     expect(rows.nth(2).locator("td:nth-child(1)")).to_have_text("C")
 
 
-def test_xlsx_import_allows_reanalysis(page, tmp_path):
-    """After an XLSX import the Analyze button produces a valid CPM result."""
+def test_xlsx_pert_import_populates_table(page, tmp_path):
+    """Uploading a PERT Excel file auto-switches to PERT mode and populates O/M/P columns."""
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.append(["ac", "pr", "du"])
-    ws.append(["A", "-", 5])
-    ws.append(["B", "A", 3])
-    xlsx_file = tmp_path / "tasks.xlsx"
+    ws.append(["ac", "pr", "opt", "ml", "pess", "name"])
+    ws.append(["A", "-", 2, 4, 6, "Alpha"])
+    ws.append(["B", "A", 1, 3, 5, "Beta"])
+    xlsx_file = tmp_path / "pert_tasks.xlsx"
     wb.save(str(xlsx_file))
 
     page.goto(BASE_URL, wait_until="domcontentloaded")
     page.locator("#file-upload-xlsx").set_input_files(str(xlsx_file))
-    page.locator("#input-table tbody tr").nth(0)  # wait for table
 
-    resp, _ = click_analyze_and_capture(page)
-    assert resp.status == 200
-    page.wait_for_selector(".gantt-row")
-    assert page.locator(".gantt-row").count() == 2
+    expect(page.locator("#toggle-pert")).to_be_checked()
+
+    rows = page.locator("#input-table tbody tr")
+    expect(rows).to_have_count(2)
+
+    row1 = rows.nth(0)
+    expect(row1.locator("td:nth-child(5)")).to_be_visible()
+    expect(row1.locator("td:nth-child(5)")).to_have_text("2")
+    expect(row1.locator("td:nth-child(6)")).to_have_text("4")
+    expect(row1.locator("td:nth-child(7)")).to_have_text("6")
+
+    row2 = rows.nth(1)
+    expect(row2.locator("td:nth-child(5)")).to_have_text("1")
+    expect(row2.locator("td:nth-child(6)")).to_have_text("3")
+    expect(row2.locator("td:nth-child(7)")).to_have_text("5")
 
 
 def test_xlsx_wrong_headers_shows_error_banner(page, tmp_path):

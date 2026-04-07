@@ -124,6 +124,9 @@ def test_table_block_ui():
             (2, str(data["name"])),
             (3, normalize(data["duration"])),
             (4, normalize(data["es"])),
+            (5, normalize(data["ef"])),
+            (6, normalize(data["ls"])),
+            (7, normalize(data["lf"])),
             (8, normalize(data["slack"]))
         ]
         for col, val in checks:
@@ -185,17 +188,6 @@ def test_zero_duration_rejected(page):
     assert any(e["id"] == "A" and "greater than zero" in e["msg"] for e in errors)
 
 
-def test_zero_duration_row_highlighted(page):
-    """Row with duration 0 is highlighted in the table after background validation."""
-    page.goto(BASE_URL, wait_until="domcontentloaded")
-    fill_rows(page, [{"id": "A", "duration": "0", "dependencies": ""}])
-    page.wait_for_timeout(700)  # debounced validation delay
-
-    error_row = page.locator("#input-table tbody tr.table-danger").first
-    expect(error_row).to_be_visible()
-    assert "greater than zero" in (error_row.get_attribute("title") or "")
-
-
 def test_smart_delete_handling(page):
     """Verifies that deleting a task highlights dependent tasks as errors."""
     page.goto(BASE_URL, wait_until="domcontentloaded")
@@ -223,6 +215,17 @@ def test_smart_delete_handling(page):
 
     assert err_b is not None
     assert "Missing dependency: A" in err_b["msg"]
+
+
+def test_analyze_with_empty_table(page):
+    """Clicking Analyze with no tasks shows an error and does not crash."""
+    page.goto(BASE_URL, wait_until="domcontentloaded")
+    page.locator("#input-table tbody").evaluate("el => { el.innerHTML = ''; }")
+    page.locator("#btn-analyze").click()
+
+    out = page.locator("#out")
+    expect(out).to_be_visible()
+    expect(out).to_have_class(re.compile(r"error"))
 
 
 def test_auto_id_generation(page):

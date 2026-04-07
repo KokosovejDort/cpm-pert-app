@@ -20,6 +20,7 @@ After extending A by +2 (duration 5 → 7):
     Project duration: 11
 """
 
+import re
 import pytest
 from playwright.sync_api import expect
 
@@ -123,16 +124,13 @@ def test_gantt_drag_updates_duration_cell(gantt_page):
     assert dur.text_content().strip() == "7"
 
 
-def test_gantt_drag_updates_project_duration_in_summary(gantt_page):
-    """After extending A by 2, the summary block shows project duration 11."""
+def test_gantt_drag_updates_cpm_table_values(gantt_page):
+    """After extending A by 2, CPM table shows recalculated ES/EF/slack and summary shows project duration 11."""
     _gantt_drag(gantt_page, "A", 2)
+
     summary_text = gantt_page.locator("#cpm-summary .fw-bold.fs-5").first.text_content()
     assert "11" in summary_text
 
-
-def test_gantt_drag_updates_cpm_table_values(gantt_page):
-    """After extending A by 2, CPM table shows recalculated ES/EF/slack for all tasks."""
-    _gantt_drag(gantt_page, "A", 2)
     a = _get_cpm_row(gantt_page, "A")
     assert a["es"] == 0 and a["ef"] == 7 and a["slack"] == 0
 
@@ -272,6 +270,32 @@ def test_gantt_no_handles_in_pert_mode(gantt_page):
     gantt_page.wait_for_selector(".gantt-row")
 
     assert gantt_page.locator(".gantt-handle").count() == 0
+
+
+def test_network_aon_aoa_toggle(gantt_page):
+    """Toggling the AON/AOA switch changes the active view without breaking the page."""
+    page = gantt_page
+    page.locator("#network-tab").click()
+    expect(page.locator("#tab-network")).to_have_class(re.compile(r"active"))
+
+    toggle = page.locator("#toggle-network-mode")
+    expect(toggle).not_to_be_checked()  # default is AOA
+
+    # Network container must have a canvas (Cytoscape renders into canvas elements)
+    expect(page.locator("#cpm-network canvas").first).to_be_visible()
+
+    # Switch to AON
+    toggle.check()
+    expect(toggle).to_be_checked()
+    expect(page.locator("#cpm-network canvas").first).to_be_visible()
+
+    # No error banner should appear after the switch
+    expect(page.locator("#out")).not_to_have_class(re.compile(r"error"))
+
+    # Switch back to AOA
+    toggle.uncheck()
+    expect(toggle).not_to_be_checked()
+    expect(page.locator("#cpm-network canvas").first).to_be_visible()
 
 
 def test_gantt_drag_pert_shows_warning(gantt_page):
