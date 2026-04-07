@@ -103,7 +103,7 @@ def test_csv_import_populates_table(page, tmp_path):
 
 
 def test_csv_pert_import_populates_pert_columns(page, tmp_path):
-    """Uploading a PERT CSV with opt/ml/pess headers populates O/M/P columns."""
+    """Uploading a PERT CSV with opt/ml/pess headers populates O/M/P columns and auto-switches to PERT mode."""
     csv_file = tmp_path / "pert.csv"
     csv_file.write_text(
         "ac,pr,opt,ml,pess,name\nA,-,2,4,6,Alpha\nB,A,1,3,5,Beta\n",
@@ -114,9 +114,6 @@ def test_csv_pert_import_populates_pert_columns(page, tmp_path):
 
     rows = page.locator("#input-table tbody tr")
     expect(rows).to_have_count(2)
-
-    # O/M/P cells are hidden until PERT mode is enabled
-    page.locator("#toggle-pert").check()
 
     row1 = rows.nth(0)
     expect(row1.locator("td:nth-child(5)")).to_have_text("2")  # O
@@ -129,12 +126,40 @@ def test_csv_pert_import_populates_pert_columns(page, tmp_path):
     expect(row2.locator("td:nth-child(7)")).to_have_text("5")
 
 
+def test_csv_pert_import_auto_switches_to_pert_mode(page, tmp_path):
+    """Uploading a PERT CSV while in CPM mode automatically flips the mode toggle to PERT."""
+    csv_file = tmp_path / "pert.csv"
+    csv_file.write_text("ac,pr,opt,ml,pess\nA,-,2,4,6\n", encoding="utf-8")
+
+    page.goto(BASE_URL, wait_until="domcontentloaded")
+    expect(page.locator("#toggle-pert")).not_to_be_checked()
+
+    page.locator("#file-upload-csv").set_input_files(str(csv_file))
+
+    expect(page.locator("#toggle-pert")).to_be_checked()
+    expect(page.locator("#input-table tbody tr")).to_have_count(1)
+
+
+def test_csv_cpm_import_while_in_pert_mode_auto_switches(page, tmp_path):
+    """Uploading a CPM CSV while in PERT mode automatically flips the mode toggle back to CPM."""
+    csv_file = tmp_path / "cpm.csv"
+    csv_file.write_text("ac,pr,du\nA,-,3\nB,A,5\n", encoding="utf-8")
+
+    page.goto(BASE_URL, wait_until="domcontentloaded")
+    page.locator("#toggle-pert").check()
+    expect(page.locator("#toggle-pert")).to_be_checked()
+
+    page.locator("#file-upload-csv").set_input_files(str(csv_file))
+
+    expect(page.locator("#toggle-pert")).not_to_be_checked()
+    expect(page.locator("#input-table tbody tr")).to_have_count(2)
+
+
 def test_csv_pert_wrong_aliases_shows_error(page, tmp_path):
-    """CSV with long-form PERT aliases is not recognized as PERT — generic error with hint shown."""
+    """CSV with long-form PERT aliases (optimistic/most_likely/pessimistic) is rejected with an explicit column error."""
     csv_file = tmp_path / "wrong_pert.csv"
-    # Non-numeric values in the duration slot ensure CPM parse fails with an error
     csv_file.write_text(
-        "ac,pr,optimistic,most_likely,pessimistic,name\nA,-,low,medium,high,Alpha\n",
+        "ac,pr,optimistic,most_likely,pessimistic,name\nA,-,2,4,6,Alpha\n",
         encoding="utf-8",
     )
     page.goto(BASE_URL, wait_until="domcontentloaded")
@@ -143,7 +168,7 @@ def test_csv_pert_wrong_aliases_shows_error(page, tmp_path):
     out = page.locator("#out")
     expect(out).to_be_visible()
     expect(out).to_have_class(re.compile(r"error"))
-    expect(page.locator("#out-text")).to_contain_text("Check header names")
+    expect(page.locator("#out-text")).to_contain_text("Unrecognised column")
 
 
 def test_csv_import_allows_reanalysis(page, tmp_path):
@@ -185,7 +210,7 @@ def test_json_cpm_import_populates_table(page, tmp_path):
 
 
 def test_json_pert_import_populates_pert_columns(page, tmp_path):
-    """Uploading a JSON file with PERT fields populates O/M/P columns after toggling PERT mode."""
+    """Uploading a JSON file with PERT fields populates O/M/P columns and auto-switches to PERT mode."""
     tasks = [
         {"id": "A", "name": "Alpha", "optimistic": 2, "most_likely": 4, "pessimistic": 6, "dependencies": ""},
         {"id": "B", "name": "Beta",  "optimistic": 1, "most_likely": 3, "pessimistic": 5, "dependencies": "A"},
@@ -199,9 +224,6 @@ def test_json_pert_import_populates_pert_columns(page, tmp_path):
     rows = page.locator("#input-table tbody tr")
     expect(rows).to_have_count(2)
 
-    # O/M/P cells are hidden until PERT mode is enabled
-    page.locator("#toggle-pert").check()
-
     # Columns (1-based nth-child): ID=1, Name=2, Dur=3, Dep=4, O=5, M=6, P=7
     row1 = rows.nth(0)
     expect(row1.locator("td:nth-child(5)")).to_have_text("2")
@@ -212,6 +234,21 @@ def test_json_pert_import_populates_pert_columns(page, tmp_path):
     expect(row2.locator("td:nth-child(5)")).to_have_text("1")
     expect(row2.locator("td:nth-child(6)")).to_have_text("3")
     expect(row2.locator("td:nth-child(7)")).to_have_text("5")
+
+
+def test_json_pert_import_auto_switches_to_pert_mode(page, tmp_path):
+    """Uploading a PERT JSON file while in CPM mode automatically flips the mode toggle to PERT."""
+    tasks = [{"id": "A", "optimistic": 2, "most_likely": 4, "pessimistic": 6, "dependencies": ""}]
+    json_file = tmp_path / "pert.json"
+    json_file.write_text(json.dumps(tasks), encoding="utf-8")
+
+    page.goto(BASE_URL, wait_until="domcontentloaded")
+    expect(page.locator("#toggle-pert")).not_to_be_checked()
+
+    page.locator("#file-upload-json").set_input_files(str(json_file))
+
+    expect(page.locator("#toggle-pert")).to_be_checked()
+    expect(page.locator("#input-table tbody tr")).to_have_count(1)
 
 
 def test_json_import_with_array_dependencies(page, tmp_path):
@@ -276,6 +313,25 @@ def test_xlsx_import_allows_reanalysis(page, tmp_path):
     assert page.locator(".gantt-row").count() == 2
 
 
+def test_xlsx_wrong_headers_shows_error_banner(page, tmp_path):
+    """Uploading an Excel file with unrecognised column names shows an explicit column error."""
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append(["id", "name", "duration", "description"])  # wrong — expects ac, pr, du
+    ws.append(["A", "-", 3, "First task"])
+    xlsx_file = tmp_path / "bad_headers.xlsx"
+    wb.save(str(xlsx_file))
+
+    page.goto(BASE_URL, wait_until="domcontentloaded")
+    page.locator("#file-upload-xlsx").set_input_files(str(xlsx_file))
+
+    out = page.locator("#out")
+    expect(out).to_be_visible()
+    expect(out).to_have_class(re.compile(r"error"))
+    expect(page.locator("#out-text")).to_contain_text("Failed to import Excel file")
+    expect(page.locator("#out-text")).to_contain_text("Unrecognised column")
+
+
 # ── Group 5: Error handling ───────────────────────────────────────────────────
 
 def test_json_import_invalid_syntax_shows_error_banner(page, tmp_path):
@@ -304,6 +360,21 @@ def test_json_import_wrong_type_shows_error_banner(page, tmp_path):
     expect(out).to_be_visible()
     expect(out).to_have_class(re.compile(r"error"))
     expect(page.locator("#out-text")).to_contain_text("array")
+
+
+def test_json_import_unknown_fields_shows_error(page, tmp_path):
+    """JSON with unrecognised field names shows an explicit field error."""
+    bad_tasks = [{"identifier": "A", "time": 3, "deps": ""}]
+    json_file = tmp_path / "bad_fields.json"
+    json_file.write_text(json.dumps(bad_tasks), encoding="utf-8")
+
+    page.goto(BASE_URL, wait_until="domcontentloaded")
+    page.locator("#file-upload-json").set_input_files(str(json_file))
+
+    out = page.locator("#out")
+    expect(out).to_be_visible()
+    expect(out).to_have_class(re.compile(r"error"))
+    expect(page.locator("#out-text")).to_contain_text("Unrecognised field")
 
 
 def test_csv_import_missing_header_shows_error_banner(page, tmp_path):

@@ -93,16 +93,63 @@ function parseCpmCsv(text) {
   if (lines.length < 2)
     throw new Error("CSV must contain a header and at least one data row.");
 
-  const headerCols = lines[0].toLowerCase().split(",").map((c) => c.trim());
-  const isPert = headerCols.some((c) => c === "opt" || c === "ml" || c === "pess");
+  const headerCols = lines[0]
+    .toLowerCase()
+    .split(",")
+    .map((c) => c.trim());
 
-  return lines.slice(1).map((line, idx) => {
+  // CPM requires: ac, pr, du. PERT requires: ac, pr, opt, ml, pess.
+  // "name" is optional in both. Any other column makes the format unrecognised.
+
+  const hasCpmRequired =
+    headerCols.includes("ac") &&
+    headerCols.includes("pr") &&
+    headerCols.includes("du");
+
+  let hasCpmExtras = false;
+  for (const col of headerCols) {
+    if (col !== "ac" && col !== "pr" && col !== "du" && col !== "name") {
+      hasCpmExtras = true;
+    }
+  }
+
+  const isCpm = hasCpmRequired && !hasCpmExtras;
+
+  const hasPertRequired =
+    headerCols.includes("ac") &&
+    headerCols.includes("pr") &&
+    headerCols.includes("opt") &&
+    headerCols.includes("ml") &&
+    headerCols.includes("pess");
+
+  let hasPertExtras = false;
+  for (const col of headerCols) {
+    if (
+      col !== "ac" &&
+      col !== "pr" &&
+      col !== "opt" &&
+      col !== "ml" &&
+      col !== "pess" &&
+      col !== "name"
+    ) {
+      hasPertExtras = true;
+    }
+  }
+
+  const isPert = hasPertRequired && !hasPertExtras;
+
+  if (!isCpm && !isPert)
+    throw new Error(
+      `Unrecognised column format: got [${headerCols.join(", ")}]. ` +
+        `Expected CPM (ac, pr, du) or PERT (ac, pr, opt, ml, pess), ` +
+        `with an optional "name" column.`,
+    );
+
+  const tasks = lines.slice(1).map((line, idx) => {
     const rowNumber = idx + 2;
     const cols = line.split(",").map((c) => c.trim());
 
     if (isPert) {
-      if (cols.length < 5)
-        throw new Error(`Row ${rowNumber}: PERT CSV needs at least 5 columns.`);
       const [idRaw, prRaw, oRaw, mRaw, pRaw, nameRaw] = cols;
       if (!idRaw) throw new Error(`Row ${rowNumber}: missing ID.`);
       return {
@@ -114,8 +161,6 @@ function parseCpmCsv(text) {
         dependencies: parseCsvPredecessors(prRaw).join(", "),
       };
     } else {
-      if (cols.length < 3)
-        throw new Error(`Row ${rowNumber}: expected at least 3 columns.`);
       const [idRaw, prRaw, duRaw, nameRaw] = cols;
       if (!idRaw) throw new Error(`Row ${rowNumber}: missing ID.`);
       const duration = Number(duRaw);
@@ -129,6 +174,8 @@ function parseCpmCsv(text) {
       };
     }
   });
+
+  return { tasks, isPert };
 }
 
 function parseCsvPredecessors(prCell) {
@@ -146,31 +193,96 @@ function parseCsvPredecessors(prCell) {
 
 function parseJsonTasks(text) {
   let data;
-  try { data = JSON.parse(text); } catch (e) {
+  try {
+    data = JSON.parse(text);
+  } catch (e) {
     throw new Error("Invalid JSON: " + e.message);
   }
-  if (!Array.isArray(data)) throw new Error("JSON must be an array of task objects.");
+  if (!Array.isArray(data))
+    throw new Error("JSON must be an array of task objects.");
   if (data.length === 0) throw new Error("JSON array is empty.");
-  return data.map((obj, idx) => {
+
+  // CPM fields: id, name, duration, dependencies.
+  // PERT fields: id, name, optimistic, most_likely, pessimistic, dependencies.
+  // "name" and "dependencies" are shared and optional in both formats.
+
+  const tasks = [];
+  for (let idx = 0; idx < data.length; idx++) {
+    const obj = data[idx];
     const rowNum = idx + 1;
+
+    // A row is PERT if it contains any PERT-only field (not present in CPM).
+    let isPertObj = false;
+    if (obj.optimistic !== undefined) isPertObj = true;
+    if (obj.most_likely !== undefined) isPertObj = true;
+    if (obj.pessimistic !== undefined) isPertObj = true;
+
+    // Check that no unexpected fields are present.
+    const unexpectedFields = [];
+    for (const key of Object.keys(obj)) {
+      if (isPertObj) {
+        if (
+          key !== "id" &&
+          key !== "name" &&
+          key !== "optimistic" &&
+          key !== "most_likely" &&
+          key !== "pessimistic" &&
+          key !== "dependencies"
+        ) {
+          unexpectedFields.push(key);
+        }
+      } else {
+        if (
+          key !== "id" &&
+          key !== "name" &&
+          key !== "duration" &&
+          key !== "dependencies"
+        ) {
+          unexpectedFields.push(key);
+        }
+      }
+    }
+    if (unexpectedFields.length > 0)
+      throw new Error(
+        `Unrecognised field(s) in row ${rowNum}: [${unexpectedFields.join(", ")}]. ` +
+          `Expected CPM (id, name, duration, dependencies) or ` +
+          `PERT (id, name, optimistic, most_likely, pessimistic, dependencies).`,
+      );
+
     if (!obj.id) throw new Error(`Row ${rowNum}: missing "id" field.`);
     const deps = Array.isArray(obj.dependencies)
       ? obj.dependencies.join(", ")
       : String(obj.dependencies || "");
-    const task = { id: String(obj.id), name: String(obj.name || obj.id), dependencies: deps };
-    if (obj.optimistic !== undefined || obj.most_likely !== undefined || obj.pessimistic !== undefined) {
+    const task = {
+      id: String(obj.id),
+      name: String(obj.name || obj.id),
+      dependencies: deps,
+    };
+    if (isPertObj) {
       task.optimistic = String(obj.optimistic ?? "");
       task.most_likely = String(obj.most_likely ?? "");
       task.pessimistic = String(obj.pessimistic ?? "");
     } else {
       task.duration = String(obj.duration ?? "0");
     }
-    return task;
-  });
+    tasks.push(task);
+  }
+
+  // Determine the overall mode: if any task has PERT fields, the whole file is PERT.
+  let isPert = false;
+  for (const task of tasks) {
+    if (task.optimistic !== undefined) {
+      isPert = true;
+      break;
+    }
+  }
+
+  return { tasks, isPert };
 }
 
 function parseXlsxToTasks(arrayBuffer) {
-  if (typeof XLSX === "undefined") throw new Error("SheetJS library is not loaded.");
+  if (typeof XLSX === "undefined")
+    throw new Error("SheetJS library is not loaded.");
   const wb = XLSX.read(arrayBuffer, { type: "array" });
   const wsName = wb.SheetNames[0];
   if (!wsName) throw new Error("Excel file contains no sheets.");
@@ -189,29 +301,44 @@ function handleFileUpload(event) {
 
   function onError(format, err) {
     console.error(err);
-    const hint = " — Check header names and correct format (ⓘ Import).";
-    show(out, "error", `Failed to import ${format}: ${err.message}${hint}`);
+    show(out, "error", `Failed to import ${format}: ${err.message}`);
+  }
+
+  function onSuccess({ tasks, isPert }) {
+    const toggle = document.getElementById("toggle-pert");
+    if (toggle) toggle.checked = isPert;
+    switchPertMode(isPert);
+    applyTasksToTable(tasks);
   }
 
   if (ext === "json") {
     const reader = new FileReader();
     reader.onload = (e) => {
-      try { applyTasksToTable(parseJsonTasks(e.target.result)); }
-      catch (err) { onError("JSON", err); }
+      try {
+        onSuccess(parseJsonTasks(e.target.result));
+      } catch (err) {
+        onError("JSON", err);
+      }
     };
     reader.readAsText(file);
   } else if (ext === "xlsx" || ext === "xls") {
     const reader = new FileReader();
     reader.onload = (e) => {
-      try { applyTasksToTable(parseXlsxToTasks(e.target.result)); }
-      catch (err) { onError("Excel file", err); }
+      try {
+        onSuccess(parseXlsxToTasks(e.target.result));
+      } catch (err) {
+        onError("Excel file", err);
+      }
     };
     reader.readAsArrayBuffer(file);
   } else {
     const reader = new FileReader();
     reader.onload = (e) => {
-      try { applyTasksToTable(parseCpmCsv(e.target.result)); }
-      catch (err) { onError("CSV", err); }
+      try {
+        onSuccess(parseCpmCsv(e.target.result));
+      } catch (err) {
+        onError("CSV", err);
+      }
     };
     reader.readAsText(file);
   }
