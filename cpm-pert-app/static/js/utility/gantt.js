@@ -258,7 +258,7 @@ function buildGanttRow(svg, item, ghostItem, rowIndex, svgW) {
     },
     ["gantt-label"],
   );
-  barLbl.textContent = bw >= 24 ? item.name : "";
+  barLbl.textContent = item.id;
   g.appendChild(barLbl);
 
   // Resize handle — CPM mode only, visible duration only
