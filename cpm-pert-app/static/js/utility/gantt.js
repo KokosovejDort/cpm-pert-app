@@ -292,7 +292,7 @@ function ganttRedrawBars(svgEl, items) {
     const lbl = row.querySelector(".gantt-label");
     if (lbl) {
       lbl.setAttribute("x", bx + bw / 2);
-      lbl.textContent = bw >= 24 ? item.name : "";
+      lbl.textContent = bw >= 24 ? item.id : "";
     }
     const handle = row.querySelector(".gantt-handle");
     if (handle) handle.setAttribute("x", bx + bw - 4);
@@ -368,7 +368,10 @@ function onGanttMouseUp() {
   if (!dragState) return;
   const { taskId, startEf, previewEf, items } = dragState;
   dragState = null;
-  if (previewEf === startEf) return;
+  if (previewEf === startEf) {
+    ganttGhostData = null;
+    return;
+  }
   const item = items.find((t) => t.id === taskId);
   if (!item) return;
   const newDuration = previewEf - item.es;

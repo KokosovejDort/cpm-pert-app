@@ -105,10 +105,10 @@ function makeNodeSvg(nodeLabel, earliest, latest) {
             <line x1="${cx}" y1="${cy}" x2="${cx}" y2="${cy + r - 1}" stroke="${borderColor}" stroke-width="1.8"/>
             <text x="${cx}" y="${cy - 10}" text-anchor="middle" dominant-baseline="middle"
                 font-family="monospace" font-size="13" font-weight="700" fill="${borderColor}">${nodeLabel}</text>
-            <text x="${cx - 14}" y="${cy + 22}" text-anchor="middle" dominant-baseline="middle"
-                font-family="Georgia,serif" font-size="17" font-weight="600" fill="#1a6e3c">${fmtVal(earliest)}</text>
-            <text x="${cx + 14}" y="${cy + 22}" text-anchor="middle" dominant-baseline="middle"
-                font-family="Georgia,serif" font-size="17" font-weight="600" fill="#1a47a0">${fmtVal(latest)}</text>
+            <text x="${cx - 17}" y="${cy + 22}" text-anchor="middle" dominant-baseline="middle"
+                font-family="Georgia,serif" font-size="13" font-weight="600" fill="#1a6e3c">${fmtVal(earliest)}</text>
+            <text x="${cx + 17}" y="${cy + 22}" text-anchor="middle" dominant-baseline="middle"
+                font-family="Georgia,serif" font-size="13" font-weight="600" fill="#1a47a0">${fmtVal(latest)}</text>
         </svg>`;
   return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
 }

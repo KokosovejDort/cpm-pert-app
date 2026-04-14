@@ -1,7 +1,7 @@
 // ── Generic Utilities ─────────────────────────────────────────────────────────
 
 function formatNumber(x) {
-  return Number(x).toFixed(2).replace(/\.00$/, "");
+  return Number(x).toFixed(2).replace(/\.?0+$/, "");
 }
 
 function debounce(func, wait) {
