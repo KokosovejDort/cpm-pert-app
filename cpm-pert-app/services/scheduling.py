@@ -1,73 +1,110 @@
+from statistics import NormalDist
+import math
 from collections import defaultdict, deque
-from typing import Dict, List, Set, Tuple, Any
+from typing import Dict, List, Set, Any
 
-class AoANotSupportedError(Exception):
-    """Raised when the AoA network would require dummy activities."""
-    pass
+class ScheduleValidationError(Exception):
+    def __init__(self, errors: List[Dict[str, Any]]):
+        self.errors = errors
+        super().__init__("Validation failed")
 
 
-def validate_tasks(tasks: List[Dict[str, Any]]):
+# ── Validation ────────────────────────────────────────────────────────────────
+
+def validate_common(tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
-    Validate task list:
-      - Each task must have a unique string 'id'
-      - 'duration' must be a number >= 0
-      - 'dependencies' must be a list of existing ids (no self-dependency)
-    Raises ValueError with a clear message if invalid.
+    Structural checks shared by both CPM and PERT modes.
+    Returns a list of error dicts (does not raise).
     """
-    
     if not isinstance(tasks, list):
         raise ValueError("Wrong type of objects sent")
-        
+
     if not tasks:
         raise ValueError("Input must be a non-empty list of task objects")
 
-    ids: List[str] = []
+    errors = []
+    valid_ids = set()
+    seen_ids = set()
+
     for i, task in enumerate(tasks, start=1):
-        if "id" not in task:
-            raise ValueError(f"Task #{i} has no 'id'")
-        if not isinstance(task["id"], str) or not task["id"]:
-            raise ValueError(f"Task #{i} has invalid 'id' (must be non-empty string).")
-        ids.append(task["id"])
+        tid = task.get("id")
+        if not tid or not isinstance(tid, str):
+            errors.append({"id": None, "msg": f"Row {i} missing ID"})
+            continue
 
-        if "duration" not in task:
-            raise ValueError(f"Task {task['id']}: missing 'duration'.")
+        if tid in seen_ids:
+            errors.append({"id": tid, "msg": f"Duplicate ID: {tid}"})
+        else:
+            seen_ids.add(tid)
+            valid_ids.add(tid)
 
-        try:
-            duration = float(task["duration"])
-        except Exception:
-            raise ValueError(f"Task {task['id']}: 'duration' must be a number.")
-        if duration < 0:
-            raise ValueError(f"Task {task['id']}: 'duration' must be >= 0.")
+        deps = task.get("dependencies")
+        if deps is not None and not isinstance(deps, list):
+            errors.append({"id": tid, "msg": "Dependencies must be a list"})
 
-        dependencies = task.get("dependencies")
-        if dependencies is None:
-            dependencies = []
-            task["dependencies"] = []
-        if not isinstance(dependencies, list):
-            raise ValueError(f"Task {task['id']}: 'dependencies' must be a list.")
-        if task["id"] in dependencies:
-            raise ValueError(f"Task {task['id']}: cannot depend on itself.")
-        
-    id_set = set(ids)
-    if len(id_set) != len(ids):
-        seen, dups = set(), set()
-        for x in ids:
-            if x in seen:
-                dups.add(x)
-            seen.add(x)
-        dup_list = ", ".join(sorted(dups))
-        raise ValueError(f"Duplicate task ids found: {dup_list}")
-    
     for task in tasks:
-        for dep in task.get("dependencies", []):
-            if dep not in id_set:
-                raise ValueError(f"Task {task['id']}: dependency '{dep}' does not exist.")
+        tid = task.get("id")
+        if not tid or tid not in valid_ids:
+            continue
+
+        deps = task.get("dependencies", [])
+        if isinstance(deps, list):
+            for dep in deps:
+                if dep == tid:
+                    errors.append({"id": tid, "msg": "Self-dependency"})
+                elif dep not in valid_ids:
+                    errors.append({"id": tid, "msg": f"Missing dependency: {dep}"})
+
+    return errors
 
 
-def cpm_aon(tasks: List[Dict[str, Any]]):
+def validate_cpm_fields(tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """CPM-specific validation: each task must have a duration > 0. Returns error list."""
+    errors = []
+    for task in tasks:
+        tid = task.get("id")
+        if not tid or not isinstance(tid, str):
+            continue  
+        if "duration" not in task:
+            errors.append({"id": tid, "msg": "Missing duration"})
+        else:
+            try:
+                d = float(task["duration"])
+                if d <= 0:
+                    errors.append({"id": tid, "msg": "Duration must be greater than zero"})
+            except (TypeError, ValueError):
+                errors.append({"id": tid, "msg": "Duration must be a number"})
+    return errors
+
+
+def validate_pert_fields(tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """PERT-specific validation: each task must have optimistic ≤ most_likely ≤ pessimistic. Returns error list."""
+    errors = []
+    for task in tasks:
+        tid = task.get("id", "?")
+        raw = {k: task.get(k) for k in ("optimistic", "most_likely", "pessimistic")}
+        missing = [k for k, v in raw.items() if v is None]
+        if missing:
+            errors.append({"id": tid, "msg": f"PERT mode requires: {', '.join(missing)}"})
+            continue
+        try:
+            o, m, p = float(raw["optimistic"]), float(raw["most_likely"]), float(raw["pessimistic"])
+        except (TypeError, ValueError):
+            errors.append({"id": tid, "msg": "PERT estimates must be numbers"})
+            continue
+        if o <= 0 or m <= 0 or p <= 0:
+            errors.append({"id": tid, "msg": "Optimistic, Most Likely and Pessimistic must all be greater than zero"})
+        elif not (o <= m <= p):
+            errors.append({"id": tid, "msg": "Must satisfy: Optimistic ≤ Most Likely ≤ Pessimistic"})
+    return errors
+
+
+# ── Core Algorithm ────────────────────────────────────────────────────────────
+
+def _forward_backward_pass(tasks: List[Dict[str, Any]]):
     """
-    Core CPM on Activity-on-Node (AON) network.
-    Returns all activity times plus graph relationships.
+    Topological sort + forward pass (ES/EF) + backward pass (LS/LF).
+    Returns activity times and graph relationships for use by both CPM and PERT.
     """
     preds: Dict[str, Set[str]] = {t["id"]: set(t.get("dependencies", [])) for t in tasks}
     succs: Dict[str, Set[str]] = defaultdict(set)
@@ -77,82 +114,57 @@ def cpm_aon(tasks: List[Dict[str, Any]]):
         for pred in task.get("dependencies", []):
             succs[pred].add(task["id"])
 
-    dependenciesCount: Dict[str, int] = {
+    in_degree: Dict[str, int] = {
         taskId: len(preds[taskId]) for taskId in preds
     }
     queue: deque[str] = deque([
-        taskId 
-        for taskId, depCount in dependenciesCount.items()
+        taskId
+        for taskId, depCount in in_degree.items()
         if depCount == 0
     ])
-    topologicalOder: List[str] = []
+    topological_order: List[str] = []
 
     while queue:
         currentTaskId = queue.popleft()
-        topologicalOder.append(currentTaskId)
+        topological_order.append(currentTaskId)
 
         for dependentTaskId in succs[currentTaskId]:
-            dependenciesCount[dependentTaskId] -= 1
-            if dependenciesCount[dependentTaskId] == 0:
+            in_degree[dependentTaskId] -= 1
+            if in_degree[dependentTaskId] == 0:
                 queue.append(dependentTaskId)
 
-    if len(topologicalOder) != len(tasks):
-        raise ValueError("Cycle detected in dependencies")
+    if len(topological_order) != len(tasks):
+        processed = set(topological_order)
+        cycle_ids = {t["id"] for t in tasks if t["id"] not in processed}
+        changed = True
+        while changed:
+            sinks = {tid for tid in cycle_ids if not succs[tid] & cycle_ids}
+            changed = bool(sinks)
+            cycle_ids -= sinks
+        raise ScheduleValidationError([
+            {"id": tid, "msg": "Cycle detected in dependencies"}
+            for tid in cycle_ids
+        ])
 
     es: Dict[str, float] = {}
     ef: Dict[str, float] = {}
 
-    for taskId in topologicalOder:
+    for taskId in topological_order:
         es[taskId] = max((ef[p] for p in preds[taskId]), default=0.0)
         ef[taskId] = es[taskId] + dur[taskId]
-    projectDuration = max(ef.values(), default=0.0)
+    project_duration = max(ef.values(), default=0.0)
 
     ls: Dict[str, float] = {}
     lf: Dict[str, float] = {}
-    for taskId in reversed(topologicalOder):
-        lf[taskId] = min((ls[s] for s in succs[taskId]), default=projectDuration)
+    for taskId in reversed(topological_order):
+        lf[taskId] = min((ls[s] for s in succs[taskId]), default=project_duration)
         ls[taskId] = lf[taskId] - dur[taskId]
 
-    slack: Dict[str, float] = {taskId: ls[taskId] - es[taskId] for taskId in topologicalOder}
-    return es, ef, ls, lf, slack, projectDuration, preds, succs, topologicalOder, dur
+    slack: Dict[str, float] = {taskId: ls[taskId] - es[taskId] for taskId in topological_order}
+    return es, ef, ls, lf, slack, project_duration, preds, succs, topological_order, dur
 
 
-def derive_event_nodes(
-    es: Dict[str, float],
-    ef: Dict[str, float],
-    ls: Dict[str, float],
-    lf: Dict[str, float],
-    preds: Dict[str, Set[str]],
-    project_duration: float
-):
-    """
-    Derive AOA-style event (node) times from AON results.
-    Each unique predecessor set becomes one event node.
-    """
-    groups: Dict[Tuple[str, ...], List[str]] = defaultdict(list)
-    for taskId, predsSet in preds.items():
-        key = tuple(sorted(predsSet))
-        groups[key].append(taskId)
-
-    nodes: Dict[str, Dict[str, Any]] = {}
-
-    nodes["START"] = {
-        "earliest": 0.0,
-        "latest": 0.0,
-        "members": groups[()]
-    }
-    if () in groups:
-        del groups[()]
-
-    for key, members in groups.items():
-        earliest = max((ef[pred] for pred in key), default=0.0)
-        latest = min(ls[taskId] for taskId in members)
-        nodes[key] = {"earliest": earliest, "latest": latest, "members": members}
-
-    nodes["END"] = {"earliest": project_duration, "latest": project_duration, "members": []}
-    return nodes
-
-def build_aon_view_from_cpm(
+def _build_aon_view(
     es: Dict[str, float],
     ef: Dict[str, float],
     ls: Dict[str, float],
@@ -201,107 +213,254 @@ def build_aon_view_from_cpm(
     }
 
 
-def analyze_schedule_with_nodes(tasks: List[Dict[str, Any]]):
-    """
-    Combined CPM + AOA node derivation.
-    """
-    es, ef, ls, lf, slack, projectDuration, preds, succs, topology, dur = cpm_aon(tasks)
-    nodes = derive_event_nodes(es, ef, ls, lf, preds, projectDuration)
-    aoa_error = None
-    task_to_tail: Dict[str, Any] = {}
-    task_to_head: Dict[str, Any] = {}
+# ── Full Schedule Analysis ────────────────────────────────────────────────────
 
-    try:
-        for key, data in nodes.items():
-            for t in data["members"]:
-                task_to_tail[t] = key
+def _compute_schedule(tasks: List[Dict[str, Any]]):
+    es, ef, ls, lf, slack, project_duration, preds, succs, topology, dur = _forward_backward_pass(tasks)
+    
+    pred_sets = set()
+    for t in tasks:
+        pred_sets.add(frozenset(preds[t["id"]]))
+        
+    node_id_map = {}
+    node_label_map = {}
+    node_counter = 1
+    
+    def get_node_id_and_label(key):
+        nonlocal node_counter
+        if key not in node_id_map:
+            if key == "START" or key == "END":
+                node_id_map[key] = key
+                node_label_map[key] = key
+            elif isinstance(key, frozenset):
+                node_id_map[key] = str(node_counter)
+                node_label_map[key] = "after{" + ",".join(sorted(list(key))) + "}"
+                node_counter += 1
+            else: 
+                node_id_map[key] = str(node_counter)
+                node_label_map[key] = key
+                node_counter += 1
+        return node_id_map[key]
 
-        for taskId in topology:
-            succ_list = list(succs[taskId])
-            if not succ_list:
-                task_to_head[taskId] = "END"
-                continue
-            succ_set = set(succ_list)
-            found = False
-            for node_key, data in nodes.items():
-                members_set = set(data["members"])
-                if succ_set.issubset(members_set):
-                    task_to_head[taskId] = node_key
-                    found = True
-                    break
-            if not found:
-                raise AoANotSupportedError(
-                        f"This project requires dummy activities, "
-                        f"which are not supported in the current AoA implementation "
-                        f"(failed at task {taskId} with successors {succ_list})."
-                    )
-    except AoANotSupportedError as e:
-        aoa_error = str(e)
-        task_to_tail = {}
-        task_to_head = {}
-        result_nodes = []
-            
-    result_nodes: List[Dict[str, Any]] = []
-    key_to_id: Dict[Any, str] = {}
-    for idx, (key, data) in enumerate(nodes.items(), start=1):
-        if key == "START" or key == "END":
-            label = key
+    get_node_id_and_label("START")
+    get_node_id_and_label("END")
+    
+    task_tails = {}
+    for t in topology:
+        p_set = frozenset(preds[t])
+        if not p_set:
+            task_tails[t] = "START"
         else:
-            label = "after{" + ",".join(key) + "}"
-        node_id = str(idx)
-        key_to_id[key] = node_id
+            task_tails[t] = get_node_id_and_label(p_set)
+            
+    task_heads = {}
+    for t in topology:
+        targets = [s for s in pred_sets if t in s]
+        if not targets:
+            task_heads[t] = "END"
+        elif len(targets) == 1:
+            task_heads[t] = get_node_id_and_label(targets[0])
+        else:
+            target_frozenset = frozenset([t])
+            if target_frozenset in pred_sets:
+                task_heads[t] = get_node_id_and_label(target_frozenset)
+            else:
+                task_heads[t] = get_node_id_and_label(f"Completion_{t}")
+                
+    seen_edges = set()
+    dummies = []
+    dummy_counter = 1
+    
+    for t in topology:
+        tail = task_tails[t]
+        head = task_heads[t]
+        
+        if (tail, head) in seen_edges:
+            new_head = get_node_id_and_label(f"Parallel_{t}")
+            task_heads[t] = new_head
+            dummies.append({
+                "id": f"X{dummy_counter}",
+                "name": f"X{dummy_counter}",
+                "duration": 0.0,
+                "tail_node": new_head,
+                "head_node": head,
+                "dependencies": [t],
+                "is_dummy": True
+            })
+            dummy_counter += 1
+            seen_edges.add((tail, new_head))
+            seen_edges.add((new_head, head))
+        else:
+            seen_edges.add((tail, head))
+
+    for s in pred_sets:
+        if not s: continue 
+        s_node = get_node_id_and_label(s)
+        for x in s:
+            x_head = task_heads[x]
+            if x_head != s_node:
+                if (x_head, s_node) not in seen_edges:
+                    dummies.append({
+                        "id": f"X{dummy_counter}",
+                        "name": f"X{dummy_counter}",
+                        "duration": 0.0,
+                        "tail_node": x_head,
+                        "head_node": s_node,
+                        "dependencies": [x],
+                        "is_dummy": True
+                    })
+                    dummy_counter += 1
+                    seen_edges.add((x_head, s_node))
+
+    task_names = {task["id"]: task.get("name") or task["id"] for task in tasks}
+
+    all_activities = []
+    for t in topology:
+        all_activities.append({
+            "id": t,
+            "name": task_names[t],
+            "duration": dur[t],
+            "es": es[t], "ef": ef[t],
+            "ls": ls[t], "lf": lf[t],
+            "slack": slack[t],
+            "critical": abs(slack[t]) < 1e-6,
+            "dependencies": list(preds[t]),
+            "tail_node": task_tails[t],
+            "head_node": task_heads[t],
+            "is_dummy": False
+        })
+    all_activities.extend(dummies)
+
+    aoa_succs = defaultdict(list)
+    aoa_preds = defaultdict(list)
+    for act in all_activities:
+        aoa_succs[act["tail_node"]].append(act)
+        aoa_preds[act["head_node"]].append(act)
+        
+    all_node_ids = list(set(aoa_succs.keys()) | set(aoa_preds.keys()))
+    node_earliest = {n: 0.0 for n in all_node_ids}
+    node_latest = {n: project_duration for n in all_node_ids}
+    
+    in_degree = {n: len(aoa_preds[n]) for n in all_node_ids}
+    q = deque([n for n, deg in in_degree.items() if deg == 0])
+    topo_nodes = []
+    
+    while q:
+        u = q.popleft()
+        topo_nodes.append(u)
+        for act in aoa_succs[u]:
+            v = act["head_node"]
+            in_degree[v] -= 1
+            if in_degree[v] == 0:
+                q.append(v)
+                
+    for u in topo_nodes:
+        for act in aoa_succs[u]:
+            v = act["head_node"]
+            node_earliest[v] = max(node_earliest[v], node_earliest[u] + act["duration"])
+            
+    for u in reversed(topo_nodes):
+        for act in aoa_succs[u]:
+            v = act["head_node"]
+            node_latest[u] = min(node_latest[u], node_latest[v] - act["duration"])
+            
+    for act in all_activities:
+        if act.get("is_dummy"):
+            u = act["tail_node"]
+            v = act["head_node"]
+            act["es"] = node_earliest[u]
+            act["ef"] = node_earliest[u]
+            act["lf"] = node_latest[v]
+            act["ls"] = node_latest[v]
+            act["slack"] = act["ls"] - act["es"]
+            act["critical"] = abs(act["slack"]) < 1e-6
+
+    result_nodes = []
+    id_to_label = {v: node_label_map[k] for k, v in node_id_map.items()}
+    for n_id in all_node_ids:
+        members = [act["id"] for act in aoa_succs[n_id] if not act.get("is_dummy")]
         result_nodes.append({
-            "id": node_id, 
-            "label": node_id,
-            "data_label": label,
-            "earliest": data["earliest"],
-            "latest": data["latest"],
-            "members": data["members"]
+            "id": n_id,
+            "label": n_id,
+            "data_label": id_to_label.get(n_id, n_id),
+            "earliest": node_earliest[n_id],
+            "latest": node_latest[n_id],
+            "members": members
         })
-
-    result_tasks: List[Dict[str, Any]] = []
-    for taskId in topology:
-        tail_id = None
-        head_id = None
-        if taskId in task_to_tail:
-            raw_tail = task_to_tail[taskId]
-            tail_id = key_to_id.get(raw_tail)
-        if taskId in task_to_head:
-            raw_head = task_to_head[taskId]
-            head_id = key_to_id.get(raw_head)
-
-        result_tasks.append({
-            "id": taskId,
-            "name": taskId,
-            "duration": dur[taskId],
-            "es": es[taskId],
-            "ef": ef[taskId],
-            "ls": ls[taskId],
-            "lf": lf[taskId],
-            "slack": slack[taskId],
-            "critical": abs(slack[taskId]) < 1e-6,
-            "dependencies": list(preds[taskId]),
-            "tail_node": tail_id,
-            "head_node": head_id,
-        })
-    aon_view = build_aon_view_from_cpm(
-        es=es,
-        ef=ef,
-        ls=ls,
-        lf=lf,
-        slack=slack,
-        preds=preds,
-        succs=succs,
-        topology=topology,
-        dur=dur,
-        project_duration=projectDuration,
+        
+    aon_view = _build_aon_view(
+        es=es, ef=ef, ls=ls, lf=lf, slack=slack,
+        preds=preds, succs=succs, topology=topology,
+        dur=dur, project_duration=project_duration,
     )
+
     return {
-        "project_duration": projectDuration,
-        "tasks": result_tasks,
+        "project_duration": project_duration,
+        "tasks": all_activities,
         "nodes": result_nodes,
-        "aoa_error": aoa_error,
         "aon": aon_view
     }
 
 
+# ── Public API ────────────────────────────────────────────────────────────────
+
+def analyze_cpm(tasks: List[Dict[str, Any]]):
+    errors = validate_common(tasks) + validate_cpm_fields(tasks)
+    if errors:
+        raise ScheduleValidationError(errors)
+    return _compute_schedule(tasks)
+
+
+def analyze_pert(tasks: List[Dict[str, Any]]):
+    errors = validate_common(tasks) + validate_pert_fields(tasks)
+    if errors:
+        raise ScheduleValidationError(errors)
+
+    pert_data: Dict[str, Dict[str, float]] = {}
+    cpm_tasks: List[Dict[str, Any]] = []
+
+    for t in tasks:
+        task_id = t["id"]
+        o = float(t["optimistic"])
+        m = float(t["most_likely"])
+        p = float(t["pessimistic"])
+        expected  = (o + 4.0 * m + p) / 6.0
+        variance  = ((p - o) / 6.0) ** 2
+        pert_data[task_id] = {
+            "optimistic":  o,
+            "most_likely": m,
+            "pessimistic": p,
+            "expected":    expected,
+            "variance":    variance,
+            "std_dev":     math.sqrt(variance),
+        }
+        cpm_tasks.append({**t, "duration": expected})
+
+    result = _compute_schedule(cpm_tasks)
+
+    for task in result["tasks"]:
+        task_id = task["id"]
+        if task_id in pert_data:
+            task.update(pert_data[task_id])
+
+    crit_variance = sum(
+        pert_data[t["id"]]["variance"]
+        for t in result["tasks"]
+        if t.get("critical") and not t.get("is_dummy") and t["id"] in pert_data
+    )
+    project_std = math.sqrt(crit_variance) if crit_variance > 0 else 0.0
+    project_duration = result["project_duration"]
+
+    result["pert_stats"] = {
+        "expected_duration": project_duration,
+        "variance":  crit_variance,
+        "std_dev":   project_std,
+        "deadlines": {
+            "p50":  round(project_duration + NormalDist().inv_cdf(0.50) * project_std, 2),
+            "p75":  round(project_duration + NormalDist().inv_cdf(0.75) * project_std, 2),
+            "p90":  round(project_duration + NormalDist().inv_cdf(0.90) * project_std, 2),
+            "p95":  round(project_duration + NormalDist().inv_cdf(0.95) * project_std, 2),
+            "p99":  round(project_duration + NormalDist().inv_cdf(0.99) * project_std, 2),
+        },
+    }
+    return result
