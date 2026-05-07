@@ -13,7 +13,7 @@ function mapCpmToGantt(result) {
 
   const ganttTasks = result.tasks
     .filter((t) => !String(t.id).includes("Dummy") && !t.is_dummy)
-    .sort((a, b) => String(a.id).localeCompare(String(b.id)));
+    .sort((a, b) => String(a.id).localeCompare(String(b.id), undefined, { numeric: true }));
 
   const items = ganttTasks.map((t) => {
     const depsArray = Array.isArray(t.dependencies) ? t.dependencies : [];

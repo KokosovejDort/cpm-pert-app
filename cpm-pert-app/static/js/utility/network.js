@@ -12,8 +12,8 @@ const CY_STYLE = [
     selector: "node",
     style: {
       shape: "ellipse",
-      width: 90,
-      height: 90,
+      width: 110,
+      height: 110,
       "background-color": "#ffffff",
       "background-image": "data(bgImage)",
       "background-fit": "contain",
@@ -92,23 +92,26 @@ const CY_STYLE = [
 ];
 
 function makeNodeSvg(nodeLabel, earliest, latest) {
-  const size = 90;
-  const r = 43;
-  const cx = 45,
-    cy = 45;
+  const size = 110;
+  const r = 53;
+  const cx = 55,
+    cy = 55;
   const borderColor = "#2c1810";
   const fmtVal = (v) => (v === undefined || v === null ? "?" : formatNumber(v));
+  const eStr = fmtVal(earliest), lStr = fmtVal(latest);
+  const maxLen = Math.max(eStr.length, lStr.length);
+  const valFontSize = maxLen <= 3 ? 14 : maxLen <= 5 ? 12 : maxLen <= 7 ? 10 : 9;
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}">
             <circle cx="${cx}" cy="${cy}" r="${r}" fill="white" stroke="${borderColor}" stroke-width="2.5"/>
             <line x1="${cx - r + 1}" y1="${cy}" x2="${cx + r - 1}" y2="${cy}" stroke="${borderColor}" stroke-width="1.8"/>
             <line x1="${cx}" y1="${cy}" x2="${cx}" y2="${cy + r - 1}" stroke="${borderColor}" stroke-width="1.8"/>
-            <text x="${cx}" y="${cy - 10}" text-anchor="middle" dominant-baseline="middle"
-                font-family="monospace" font-size="13" font-weight="700" fill="${borderColor}">${nodeLabel}</text>
-            <text x="${cx - 17}" y="${cy + 22}" text-anchor="middle" dominant-baseline="middle"
-                font-family="Georgia,serif" font-size="13" font-weight="600" fill="#1a6e3c">${fmtVal(earliest)}</text>
-            <text x="${cx + 17}" y="${cy + 22}" text-anchor="middle" dominant-baseline="middle"
-                font-family="Georgia,serif" font-size="13" font-weight="600" fill="#1a47a0">${fmtVal(latest)}</text>
+            <text x="${cx}" y="${cy - 13}" text-anchor="middle" dominant-baseline="middle"
+                font-family="monospace" font-size="14" font-weight="700" fill="${borderColor}">${nodeLabel}</text>
+            <text x="${cx - 22}" y="${cy + 26}" text-anchor="middle" dominant-baseline="middle"
+                font-family="Georgia,serif" font-size="${valFontSize}" font-weight="600" fill="#1a6e3c">${eStr}</text>
+            <text x="${cx + 22}" y="${cy + 26}" text-anchor="middle" dominant-baseline="middle"
+                font-family="Georgia,serif" font-size="${valFontSize}" font-weight="600" fill="#1a47a0">${lStr}</text>
         </svg>`;
   return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
 }
@@ -223,6 +226,7 @@ function ensureCy() {
     container: document.getElementById("cpm-network"),
     elements: [],
     boxSelectionEnabled: false,
+    wheelSensitivity: 0.2,
     style: CY_STYLE,
   });
   return cy;

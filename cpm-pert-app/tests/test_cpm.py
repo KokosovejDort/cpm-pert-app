@@ -137,40 +137,37 @@ def test_table_block_ui():
             expect(row).to_have_class(re.compile(r"cpm-row-critical"))
 
 
-@pytest.mark.parametrize("rows, expected_error_part, is_global_error", [
+@pytest.mark.parametrize("rows, expected_error_part", [
     ([{"id": "A", "name": "A", "duration": "x", "dependencies": ""}],
-     "Duration must be a number", False),
+     "Duration must be a number"),
 
     ([{"id": "A", "name": "A", "duration": "-1", "dependencies": ""}],
-     "Duration must be greater than zero", False),
+     "Duration must be greater than zero"),
 
     ([{"id": "A", "name": "A", "duration": "1", "dependencies": "A"}],
-     "Self-dependency", False),
+     "Self-dependency"),
 
     ([{"id": "A", "name": "A", "duration": "1", "dependencies": "B"}],
-     "Missing dependency: B", False),
+     "Missing dependency: B"),
 
     ([{"id": "A", "name": "A", "duration": "1", "dependencies": ""},
       {"id": "A", "name": "Dup", "duration": "2", "dependencies": ""}],
-     "Duplicate ID: A", False),
+     "Duplicate ID: A"),
 
     ([{"id": "A", "name": "A", "duration": "1", "dependencies": "B"},
       {"id": "B", "name": "B", "duration": "1", "dependencies": "A"}],
-     "Cycle detected", True),
+     "Cycle detected"),
 ])
-def test_validation_scenarios(page, rows, expected_error_part, is_global_error):
+def test_validation_scenarios(page, rows, expected_error_part):
     page.goto(BASE_URL, wait_until="domcontentloaded")
     fill_rows(page, rows)
 
     resp, _ = click_analyze_and_capture(page)
 
-    if is_global_error:
-        assert expected_error_part in page.locator("#out").text_content()
-    else:
-        error_row = page.locator("#input-table tbody tr.table-danger").first
-        expect(error_row).to_be_visible()
-        title_text = error_row.get_attribute("title")
-        assert expected_error_part in title_text
+    error_row = page.locator("#input-table tbody tr.table-danger").first
+    expect(error_row).to_be_visible()
+    title_text = error_row.get_attribute("title")
+    assert expected_error_part in title_text
 
 
 def test_zero_duration_rejected(page):

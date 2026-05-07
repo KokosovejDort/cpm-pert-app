@@ -64,7 +64,7 @@ def validate_cpm_fields(tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     for task in tasks:
         tid = task.get("id")
         if not tid or not isinstance(tid, str):
-            continue  # already caught by validate_common
+            continue  
         if "duration" not in task:
             errors.append({"id": tid, "msg": "Missing duration"})
         else:
@@ -134,7 +134,17 @@ def _forward_backward_pass(tasks: List[Dict[str, Any]]):
                 queue.append(dependentTaskId)
 
     if len(topological_order) != len(tasks):
-        raise ValueError("Cycle detected in dependencies")
+        processed = set(topological_order)
+        cycle_ids = {t["id"] for t in tasks if t["id"] not in processed}
+        changed = True
+        while changed:
+            sinks = {tid for tid in cycle_ids if not succs[tid] & cycle_ids}
+            changed = bool(sinks)
+            cycle_ids -= sinks
+        raise ScheduleValidationError([
+            {"id": tid, "msg": "Cycle detected in dependencies"}
+            for tid in cycle_ids
+        ])
 
     es: Dict[str, float] = {}
     ef: Dict[str, float] = {}

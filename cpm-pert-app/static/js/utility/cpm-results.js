@@ -83,7 +83,7 @@ function renderCpmTable(result) {
   const tasks = (result.tasks || []).filter(
     (t) => !String(t.id).includes("Dummy") && !t.is_dummy,
   );
-  tasks.sort((a, b) => String(a.id).localeCompare(String(b.id)));
+  tasks.sort((a, b) => String(a.id).localeCompare(String(b.id), undefined, { numeric: true }));
 
   const pertCols = pert ? ["O", "M", "P", "σ²"] : [];
   const baseCols = [
