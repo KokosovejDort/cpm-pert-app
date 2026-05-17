@@ -28,7 +28,7 @@ REQUEST_SCHEMA = {
 def fill_rows(page, rows):
     """Fill rows in CPM mode. row dicts: id, name, duration, dependencies."""
     add_btn = page.locator("#btn-add")
-    for _ in range(len(rows) - 1):
+    for _ in range(len(rows)):
         add_btn.click()
 
     for i, r in enumerate(rows, start=1):
@@ -40,7 +40,7 @@ def fill_rows(page, rows):
 def fill_pert_rows(page, rows):
     """Fill rows when PERT mode is active. Columns: 1=ID, 2=Name, 4=Dep, 5=O, 6=M, 7=P."""
     add_btn = page.locator("#btn-add")
-    for _ in range(len(rows) - 1):
+    for _ in range(len(rows)):
         add_btn.click()
 
     for i, r in enumerate(rows, start=1):

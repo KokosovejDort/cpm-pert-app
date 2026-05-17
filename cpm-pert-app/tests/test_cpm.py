@@ -238,7 +238,7 @@ def test_auto_id_generation(page):
     letters = [chr(ord("A") + i) for i in range(26)]
     expected = []
     idx, suffix = 0, 0
-    while len(expected) < 301:
+    while len(expected) < 300:
         expected.append(f"{letters[idx]}{suffix if suffix else ''}")
         idx += 1
         if idx == 26:

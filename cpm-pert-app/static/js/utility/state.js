@@ -14,7 +14,10 @@ function loadState() {
   if (raw) {
     try {
       const tasks = JSON.parse(raw);
-      if (Array.isArray(tasks)) applyTasksToTable(tasks);
+      if (Array.isArray(tasks)) {
+        applyTasksToTable(tasks);
+        validateWithServer();
+      }
     } catch (e) {
       console.error("Load failed", e);
     }
