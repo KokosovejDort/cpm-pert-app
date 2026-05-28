@@ -28,6 +28,7 @@ def validate_common(tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
     for i, task in enumerate(tasks, start=1):
         tid = task.get("id")
+        # No need to check he tasks with no id further
         if not tid or not isinstance(tid, str):
             errors.append({"id": None, "msg": f"Row {i} missing ID"})
             continue
@@ -42,8 +43,9 @@ def validate_common(tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         if deps is not None and not isinstance(deps, list):
             errors.append({"id": tid, "msg": "Dependencies must be a list"})
 
-    for task in tasks:
+    for task in tasks: 
         tid = task.get("id")
+        # If the task has no ID it's already broken and the error is already appened from the previous cycle
         if not tid or tid not in valid_ids:
             continue
 
@@ -81,7 +83,9 @@ def validate_pert_fields(tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """PERT-specific validation: each task must have optimistic ≤ most_likely ≤ pessimistic. Returns error list."""
     errors = []
     for task in tasks:
-        tid = task.get("id", "?")
+        tid = task.get("id")
+        if not tid or not isinstance(tid, str):
+            continue 
         raw = {k: task.get(k) for k in ("optimistic", "most_likely", "pessimistic")}
         missing = [k for k, v in raw.items() if v is None]
         if missing:
@@ -138,7 +142,7 @@ def _forward_backward_pass(tasks: List[Dict[str, Any]]):
         cycle_ids = {t["id"] for t in tasks if t["id"] not in processed}
         changed = True
         while changed:
-            sinks = {tid for tid in cycle_ids if not succs[tid] & cycle_ids}
+            sinks = {tid for tid in cycle_ids if not (succs[tid] & cycle_ids)}
             changed = bool(sinks)
             cycle_ids -= sinks
         raise ScheduleValidationError([
