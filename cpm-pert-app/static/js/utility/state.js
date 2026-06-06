@@ -15,6 +15,14 @@ function loadState() {
     try {
       const tasks = JSON.parse(raw);
       if (Array.isArray(tasks)) {
+        const isPert = tasks.some((t) => t.optimistic !== undefined);
+        if (isPert) {
+          const toggle = document.getElementById("toggle-pert");
+          if (toggle) toggle.checked = true;
+          const pertHint = document.getElementById("pert-hint");
+          if (pertHint) pertHint.classList.remove("d-none");
+          switchPertMode(true);
+        }
         applyTasksToTable(tasks);
         validateWithServer();
       }
