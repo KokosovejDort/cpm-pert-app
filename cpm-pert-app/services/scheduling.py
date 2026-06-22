@@ -121,11 +121,11 @@ def _forward_backward_pass(tasks: List[Dict[str, Any]]):
     in_degree: Dict[str, int] = {
         taskId: len(preds[taskId]) for taskId in preds
     }
-    queue: deque[str] = deque([
+    queue: deque[str] = deque(sorted([
         taskId
         for taskId, depCount in in_degree.items()
         if depCount == 0
-    ])
+    ]))
     topological_order: List[str] = []
 
     while queue:
@@ -344,11 +344,10 @@ def _compute_schedule(tasks: List[Dict[str, Any]]):
     all_node_ids = list(set(aoa_succs.keys()) | set(aoa_preds.keys()))
     node_earliest = {n: 0.0 for n in all_node_ids}
     node_latest = {n: project_duration for n in all_node_ids}
-    
     in_degree = {n: len(aoa_preds[n]) for n in all_node_ids}
     q = deque([n for n, deg in in_degree.items() if deg == 0])
     topo_nodes = []
-    
+
     while q:
         u = q.popleft()
         topo_nodes.append(u)
@@ -357,7 +356,31 @@ def _compute_schedule(tasks: List[Dict[str, Any]]):
             in_degree[v] -= 1
             if in_degree[v] == 0:
                 q.append(v)
-                
+
+    _counter = 1
+    rename = {}
+    for n in topo_nodes:
+        if n in ("START", "END"):
+            rename[n] = n
+        else:
+            rename[n] = str(_counter)
+            _counter += 1
+
+    for act in all_activities:
+        act["tail_node"] = rename[act["tail_node"]]
+        act["head_node"] = rename[act["head_node"]]
+
+    node_id_map = {k: rename.get(v, v) for k, v in node_id_map.items()}
+
+    aoa_succs = defaultdict(list)
+    aoa_preds = defaultdict(list)
+    for act in all_activities:
+        aoa_succs[act["tail_node"]].append(act)
+        aoa_preds[act["head_node"]].append(act)
+
+    all_node_ids = list(set(aoa_succs.keys()) | set(aoa_preds.keys()))
+    topo_nodes = [rename[n] for n in topo_nodes]
+
     for u in topo_nodes:
         for act in aoa_succs[u]:
             v = act["head_node"]
