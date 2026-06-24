@@ -359,6 +359,8 @@ function switchPertMode(enabled) {
     .querySelectorAll(".col-pert")
     .forEach((el) => el.classList.toggle("d-none", !enabled));
 
+  let recalculated = false;
+
   document.querySelectorAll("#input-table tbody tr").forEach((row) => {
     const cells = row.querySelectorAll("td");
     if (cells.length < 7) return;
@@ -367,9 +369,9 @@ function switchPertMode(enabled) {
       // CPM → PERT: seed O/M/P from duration when they are blank
       const dur = cells[2].textContent.trim();
       if (dur && dur !== "0") {
-        if (!cells[4].textContent.trim()) cells[4].textContent = dur;
-        if (!cells[5].textContent.trim()) cells[5].textContent = dur;
-        if (!cells[6].textContent.trim()) cells[6].textContent = dur;
+        if (!cells[4].textContent.trim()) { cells[4].textContent = dur; recalculated = true; }
+        if (!cells[5].textContent.trim()) { cells[5].textContent = dur; recalculated = true; }
+        if (!cells[6].textContent.trim()) { cells[6].textContent = dur; recalculated = true; }
       }
     } else {
       // PERT → CPM: compute expected duration (O + 4M + P) / 6
@@ -382,11 +384,14 @@ function switchPertMode(enabled) {
         (!cells[2].textContent.trim() || cells[2].textContent.trim() === "0")
       ) {
         cells[2].textContent = formatNumber(expected);
+        recalculated = true;
       }
     }
 
     applyPertModeToRow(row);
   });
+
+  return recalculated;
 }
 
 function applyPertModeToRow(tr) {

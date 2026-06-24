@@ -177,7 +177,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const pert = togglePert.checked;
       const pertHint = document.getElementById("pert-hint");
       if (pertHint) pertHint.classList.toggle("d-none", !pert);
-      switchPertMode(pert);
+      const recalculated = switchPertMode(pert);
 
       document.getElementById("cpm-summary").innerHTML =
         '<div class="text-muted fst-italic">Run analysis to see results...</div>';
@@ -195,8 +195,12 @@ document.addEventListener("DOMContentLoaded", () => {
         out,
         "warn",
         pert
-          ? "Switched to PERT mode. Duration values were copied to O/M/P as equal estimates — adjust them before running analysis."
-          : "Switched to CPM mode. Expected duration (O + 4M + P) / 6 was computed from your PERT estimates.",
+          ? (recalculated
+            ? "Switched to PERT mode. Duration values were copied to O/M/P as equal estimates — adjust them before running analysis."
+            : "Switched to PERT mode. Your existing O/M/P estimates were preserved.")
+          : (recalculated
+            ? "Switched to CPM mode. Expected duration (O + 4M + P) / 6 was computed from your PERT estimates."
+            : "Switched to CPM mode. Your existing duration values were preserved."),
       );
 
       saveState();
